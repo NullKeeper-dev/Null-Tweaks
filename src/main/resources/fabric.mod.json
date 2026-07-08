@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "id": "${id}",
+  "version": "${version}",
+  "name": "${name}",
+  "description": "${description}",
+  "authors": [
+    "NullKeeper-dev"
+  ],
+  "contact": {
+    "sources": "https://github.com/NullKeeper-dev/Null-Tweaks"
+  },
+  "license": "GPL-3.0-only",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "dev.nullkeeperdev.nulltweaks.NullTweaksClient"
+    ],
+    "modmenu": [
+      "dev.nullkeeperdev.nulltweaks.config.screen.NullTweaksModMenuApi"
+    ]
+  },
+  "mixins": [
+    "nulltweaks.mixins.json"
+  ],
+  "depends": {
+    "minecraft": "${minecraft_dependency}",
+    "fabricloader": ">=${fabric_loader_version}",
+    "fabric-api": ">=${fabric_api_version}",
+    "yet_another_config_lib_v3": ">=${yacl_dependency_version}",
+    "modmenu": ">=${modmenu_version}"
+  }
+}
