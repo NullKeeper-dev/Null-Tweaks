@@ -2,8 +2,12 @@ package dev.nullkeeperdev.nulltweaks;
 
 import dev.nullkeeperdev.nulltweaks.config.NullTweaksConfig;
 import dev.nullkeeperdev.nulltweaks.feature.FeatureManager;
+import dev.nullkeeperdev.nulltweaks.feature.autoclicker.AutoclickerFeature;
+import dev.nullkeeperdev.nulltweaks.feature.clearfluids.ClearFluidsFeature;
 import dev.nullkeeperdev.nulltweaks.feature.freecam.FreecamFeature;
 import dev.nullkeeperdev.nulltweaks.feature.nametags.NametagTweaksFeature;
+import dev.nullkeeperdev.nulltweaks.feature.nobobber.NoBobberFeature;
+import dev.nullkeeperdev.nulltweaks.feature.nofog.NoFogFeature;
 import dev.nullkeeperdev.nulltweaks.feature.outerlayerplus.OuterLayerPlusFeature;
 import dev.nullkeeperdev.nulltweaks.input.NullTweaksKeyMappings;
 import net.fabricmc.api.ClientModInitializer;
@@ -24,6 +28,10 @@ public final class NullTweaksClient implements ClientModInitializer {
         featureManager.register(new OuterLayerPlusFeature());
         featureManager.register(new NametagTweaksFeature());
         featureManager.register(new FreecamFeature());
+        featureManager.register(new NoBobberFeature());
+        featureManager.register(new NoFogFeature());
+        featureManager.register(new ClearFluidsFeature());
+        featureManager.register(new AutoclickerFeature());
         featureManager.initialize(config);
         featureManager.registerHooks();
     }

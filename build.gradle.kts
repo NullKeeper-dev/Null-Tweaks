@@ -43,8 +43,6 @@ loom {
 }
 
 java {
-    withSourcesJar()
-
     sourceCompatibility = JavaVersion.VERSION_25
     targetCompatibility = JavaVersion.VERSION_25
 
@@ -89,7 +87,6 @@ tasks {
 
         dependsOn(named("build"))
         from(loomx.modJar.flatMap { it.archiveFile })
-        from(loomx.modSourcesJar.flatMap { it.archiveFile })
         into(rootProject.layout.buildDirectory.dir("libs/${project.property("mod_version")}"))
     }
 }
