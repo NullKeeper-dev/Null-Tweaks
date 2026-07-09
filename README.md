@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/null-tweaks-cover.png" alt="Null Tweaks cover" width="520">
+  <img src="assets/cover.png" alt="Null Tweaks cover" width="520">
 </p>
 
 <h1 align="center">Null Tweaks</h1>
@@ -32,7 +32,7 @@ gameplay.
 ## Gallery
 
 <p align="center">
-  <img src="IMAGE_LINK_HERE" alt="Null Tweaks settings screen" width="760">
+  <img src="assets/gallery/Settings.png" alt="Null Tweaks settings screen" width="760">
 </p>
 
 <p align="center">
@@ -40,19 +40,27 @@ gameplay.
 </p>
 
 <p align="center">
-  <img src="IMAGE_LINK_HERE" alt="Clear fluid visuals" width="760">
+  <img src="assets/gallery/No%20Water%20Fog.png" alt="No water fog showcase" width="760">
 </p>
 
 <p align="center">
-  <sub>Clear Lava & Water can adjust fluid tint and opacity independently.</sub>
+  <sub>No Fog can remove specific fog types without changing gameplay.</sub>
 </p>
 
 <p align="center">
-  <img src="IMAGE_LINK_HERE" alt="In-game HUD tweaks" width="760">
+  <img src="assets/gallery/Nametags%20showcase.png" alt="Nametag tweaks showcase" width="760">
 </p>
 
 <p align="center">
-  <sub>HUD-facing features are designed to stay compact and readable.</sub>
+  <sub>Nametag Tweaks keeps player names easier to read at a glance.</sub>
+</p>
+
+<p align="center">
+  <img src="assets/gallery/Freecam.png" alt="Freecam showcase" width="760">
+</p>
+
+<p align="center">
+  <sub>Freecam gives flexible client-side viewing while leaving gameplay state alone.</sub>
 </p>
 
 ## Requirements

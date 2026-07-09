@@ -2,6 +2,12 @@
 
 All notable changes to Null Tweaks will be documented in this file.
 
+## [0.5.3] - 2026-07-09
+
+### Fixed
+
+- Fixed README image paths so the cover and selected gallery screenshots render from the repository assets.
+
 ## [0.5.2] - 2026-07-09
 
 ### Added
