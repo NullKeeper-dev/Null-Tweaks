@@ -9,7 +9,6 @@ import dev.isxander.yacl3.api.controller.BooleanControllerBuilder;
 import dev.nullkeeperdev.nulltweaks.config.NullTweaksConfig;
 import dev.nullkeeperdev.nulltweaks.feature.Feature;
 import dev.nullkeeperdev.nulltweaks.feature.FeatureManager;
-import dev.nullkeeperdev.nulltweaks.feature.clearfluids.ClearFluidsFeature;
 import net.minecraft.client.Camera;
 import net.minecraft.client.renderer.fog.environment.AtmosphericFogEnvironment;
 import net.minecraft.client.renderer.fog.environment.BlindnessFogEnvironment;
@@ -39,10 +38,10 @@ public final class NoFogFeature extends Feature {
             return FogType.ATMOSPHERIC;
         }
 
-        if (fogType == FogType.LAVA && (shouldDisableLavaFog() || ClearFluidsFeature.shouldClearLavaFog())) {
+        if (fogType == FogType.LAVA && shouldDisableLavaFog()) {
             return FogType.ATMOSPHERIC;
         }
-        if (fogType == FogType.WATER && (shouldDisableWaterFog() || ClearFluidsFeature.shouldClearWaterFog())) {
+        if (fogType == FogType.WATER && shouldDisableWaterFog()) {
             return FogType.ATMOSPHERIC;
         }
         if (fogType == FogType.POWDER_SNOW && shouldDisablePowderSnowFog()) {

@@ -2,6 +2,12 @@
 
 All notable changes to Null Tweaks will be documented in this file.
 
+## [1.0.0] - 2026-07-09
+
+### Removed
+
+- Removed Clear Lava & Water and its water/lava opacity controls.
+
 ## [0.5.4] - 2026-07-09
 
 ### Added

@@ -3,7 +3,6 @@ package dev.nullkeeperdev.nulltweaks;
 import dev.nullkeeperdev.nulltweaks.config.NullTweaksConfig;
 import dev.nullkeeperdev.nulltweaks.feature.FeatureManager;
 import dev.nullkeeperdev.nulltweaks.feature.autoclicker.AutoclickerFeature;
-import dev.nullkeeperdev.nulltweaks.feature.clearfluids.ClearFluidsFeature;
 import dev.nullkeeperdev.nulltweaks.feature.freecam.FreecamFeature;
 import dev.nullkeeperdev.nulltweaks.feature.nametags.NametagTweaksFeature;
 import dev.nullkeeperdev.nulltweaks.feature.nobobber.NoBobberFeature;
@@ -30,7 +29,6 @@ public final class NullTweaksClient implements ClientModInitializer {
         featureManager.register(new FreecamFeature());
         featureManager.register(new NoBobberFeature());
         featureManager.register(new NoFogFeature());
-        featureManager.register(new ClearFluidsFeature());
         featureManager.register(new AutoclickerFeature());
         featureManager.initialize(config);
         featureManager.registerHooks();

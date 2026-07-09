@@ -26,7 +26,6 @@ gameplay.
 - Freecam with configurable movement and first-person hand visibility.
 - No Fishing Bobber to hide only your local hook sprite while keeping the line.
 - No Fog with separate toggles for lava, water, powder snow, effects, and world fog.
-- Clear Lava & Water with separate tint and opacity controls for each fluid.
 - Autoclicker for fixed-interval left or right clicking with a visible active indicator.
 
 ## Gallery

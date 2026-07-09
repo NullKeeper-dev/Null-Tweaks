@@ -7,7 +7,6 @@
     "CameraFreecamMixin",
     "ClientInputFreecamMixin",
     "FishingHookRendererNoBobberMixin",
-    "FluidRendererClearFluidsMixin",
     "FogRendererNoFogMixin",
     "GameRendererFreecamMixin",
     "KeyboardInputFreecamMixin",
