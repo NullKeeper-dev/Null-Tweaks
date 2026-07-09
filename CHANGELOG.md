@@ -8,6 +8,10 @@ All notable changes to Null Tweaks will be documented in this file.
 
 - Removed Clear Lava & Water and its water/lava opacity controls.
 
+### Fixed
+
+- Fixed GitHub Actions builds on Linux by marking the Gradle wrapper executable.
+
 ## [0.5.4] - 2026-07-09
 
 ### Added
