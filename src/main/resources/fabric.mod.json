@@ -11,6 +11,7 @@
     "sources": "https://github.com/NullKeeper-dev/Null-Tweaks"
   },
   "license": "GPL-3.0-only",
+  "icon": "assets/nulltweaks/icon.png",
   "environment": "client",
   "entrypoints": {
     "client": [
@@ -29,5 +30,29 @@
     "fabric-api": ">=${fabric_api_version}",
     "yet_another_config_lib_v3": ">=${yacl_dependency_version}",
     "modmenu": ">=${modmenu_version}"
+  },
+  "custom": {
+    "modrinth": {
+      "required_dependencies": [
+        {
+          "project_id": "P7dR8mSH",
+          "dependency_type": "required",
+          "slug": "fabric-api",
+          "name": "Fabric API"
+        },
+        {
+          "project_id": "1eAoo2KR",
+          "dependency_type": "required",
+          "slug": "yacl",
+          "name": "YetAnotherConfigLib"
+        },
+        {
+          "project_id": "mOgUt4GM",
+          "dependency_type": "required",
+          "slug": "modmenu",
+          "name": "Mod Menu"
+        }
+      ]
+    }
   }
 }

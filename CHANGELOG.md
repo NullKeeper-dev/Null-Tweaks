@@ -2,6 +2,13 @@
 
 All notable changes to Null Tweaks will be documented in this file.
 
+## [0.5.4] - 2026-07-09
+
+### Added
+
+- Added the Null Tweaks cover art as the packaged mod icon.
+- Added namespaced Modrinth dependency metadata hints to the packaged Fabric metadata.
+
 ## [0.5.3] - 2026-07-09
 
 ### Fixed
