@@ -3,6 +3,7 @@ package dev.nullkeeperdev.nulltweaks.feature.nametags;
 import com.google.gson.JsonObject;
 import dev.isxander.yacl3.api.ConfigCategory;
 import dev.isxander.yacl3.api.Option;
+import dev.isxander.yacl3.api.OptionDescription;
 import dev.isxander.yacl3.api.OptionGroup;
 import dev.isxander.yacl3.api.controller.BooleanControllerBuilder;
 import dev.isxander.yacl3.api.controller.ColorControllerBuilder;
@@ -46,9 +47,9 @@ public final class NametagTweaksFeature extends Feature {
                 .collapsed(false)
                 .option(scaleOption())
                 .option(backgroundOpacityOption())
-                .option(colorOption("Text color", new Color(0xFFFFFF), this::textColor, this::setTextColor))
-                .option(booleanOption("Bold", false, this::bold, this::setBold))
-                .option(booleanOption("Compensate nametag scale while zoomed", true, this::zoomCompensation, this::setZoomCompensation))
+                .option(colorOption("Text color", "Overrides the full nametag text color.", new Color(0xFFFFFF), this::textColor, this::setTextColor))
+                .option(booleanOption("Bold", "Renders every affected nametag with bold text.", false, this::bold, this::setBold))
+                .option(booleanOption("Compensate nametag scale while zoomed", "Keeps nametags readable when the current FOV is lower than your normal FOV.", true, this::zoomCompensation, this::setZoomCompensation))
                 .build());
     }
 
@@ -106,6 +107,7 @@ public final class NametagTweaksFeature extends Feature {
     private Option<Double> scaleOption() {
         return Option.<Double>createBuilder()
                 .name(Component.literal("Scale"))
+                .description(description("Multiplies vanilla nametag size without replacing vanilla distance falloff."))
                 .binding(1.0D, this::scale, this::setScale)
                 .controller(option -> DoubleSliderControllerBuilder.create(option)
                         .range(0.5D, 2.0D)
@@ -118,6 +120,7 @@ public final class NametagTweaksFeature extends Feature {
     private Option<Integer> backgroundOpacityOption() {
         return Option.<Integer>createBuilder()
                 .name(Component.literal("Background opacity"))
+                .description(description("Controls the dark rectangle behind nametag text from transparent to fully opaque."))
                 .binding(25, this::backgroundOpacity, this::setBackgroundOpacity)
                 .controller(option -> IntegerSliderControllerBuilder.create(option)
                         .range(0, 100)
@@ -127,22 +130,28 @@ public final class NametagTweaksFeature extends Feature {
                 .build();
     }
 
-    private Option<Boolean> booleanOption(String name, boolean fallback, java.util.function.BooleanSupplier getter, java.util.function.Consumer<Boolean> setter) {
+    private Option<Boolean> booleanOption(String name, String descriptionText, boolean fallback, java.util.function.BooleanSupplier getter, java.util.function.Consumer<Boolean> setter) {
         return Option.<Boolean>createBuilder()
                 .name(Component.literal(name))
+                .description(description(descriptionText))
                 .binding(fallback, getter::getAsBoolean, setter)
                 .controller(BooleanControllerBuilder::create)
                 .instant(true)
                 .build();
     }
 
-    private Option<Color> colorOption(String name, Color fallback, java.util.function.Supplier<Color> getter, java.util.function.Consumer<Color> setter) {
+    private Option<Color> colorOption(String name, String descriptionText, Color fallback, java.util.function.Supplier<Color> getter, java.util.function.Consumer<Color> setter) {
         return Option.<Color>createBuilder()
                 .name(Component.literal(name))
+                .description(description(descriptionText))
                 .binding(fallback, getter, setter)
                 .controller(option -> ColorControllerBuilder.create(option).allowAlpha(false))
                 .instant(true)
                 .build();
+    }
+
+    private static OptionDescription description(String text) {
+        return OptionDescription.of(Component.literal(text));
     }
 
     private double scale() {

@@ -5,6 +5,7 @@ import dev.nullkeeperdev.nulltweaks.feature.FeatureManager;
 import dev.nullkeeperdev.nulltweaks.feature.freecam.FreecamFeature;
 import dev.nullkeeperdev.nulltweaks.feature.nametags.NametagTweaksFeature;
 import dev.nullkeeperdev.nulltweaks.feature.outerlayerplus.OuterLayerPlusFeature;
+import dev.nullkeeperdev.nulltweaks.input.NullTweaksKeyMappings;
 import net.fabricmc.api.ClientModInitializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,6 +18,7 @@ public final class NullTweaksClient implements ClientModInitializer {
     public void onInitializeClient() {
         LOGGER.info("Null Tweaks initializing");
 
+        NullTweaksKeyMappings.register();
         NullTweaksConfig config = NullTweaksConfig.load();
         FeatureManager featureManager = FeatureManager.INSTANCE;
         featureManager.register(new OuterLayerPlusFeature());

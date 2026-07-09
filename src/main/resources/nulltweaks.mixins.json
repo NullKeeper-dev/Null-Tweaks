@@ -4,15 +4,20 @@
   "package": "dev.nullkeeperdev.nulltweaks.mixin",
   "client": [
     "AvatarRendererNametagMixin",
+    "CameraFreecamMixin",
     "ClientInputFreecamMixin",
+    "GameRendererFreecamMixin",
     "KeyboardInputFreecamMixin",
+    "LavaFogEnvironmentFreecamMixin",
     "LocalPlayerFreecamMixin",
     "MinecraftFreecamMixin",
     "MouseHandlerFreecamMixin",
     "NameTagStorageNametagMixin",
     "PauseScreenMixin",
     "PlayerTabOverlayMixin",
-    "SubmitNodeCollectionNametagMixin"
+    "ScreenEffectRendererFreecamMixin",
+    "SubmitNodeCollectionNametagMixin",
+    "YaclScreenCategoryMemoryMixin"
   ],
   "injectors": {
     "defaultRequire": 1

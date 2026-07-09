@@ -5,9 +5,11 @@ import com.mojang.blaze3d.platform.InputConstants;
 import dev.isxander.yacl3.api.ButtonOption;
 import dev.isxander.yacl3.api.ConfigCategory;
 import dev.isxander.yacl3.api.Option;
+import dev.isxander.yacl3.api.OptionDescription;
 import dev.isxander.yacl3.api.OptionGroup;
 import dev.isxander.yacl3.api.controller.BooleanControllerBuilder;
 import dev.isxander.yacl3.api.controller.ColorControllerBuilder;
+import dev.isxander.yacl3.api.controller.IntegerFieldControllerBuilder;
 import dev.isxander.yacl3.api.controller.IntegerSliderControllerBuilder;
 import dev.nullkeeperdev.nulltweaks.config.NullTweaksConfig;
 import dev.nullkeeperdev.nulltweaks.feature.Feature;
@@ -54,6 +56,7 @@ public final class OuterLayerPlusFeature extends Feature {
     private int panelX = 8;
     private int panelY = 8;
     private double panelScale = 1.0D;
+    private int panelBackgroundOpacity = 75;
 
     public OuterLayerPlusFeature() {
         super("outer_layer_plus", "OuterLayer+", true);
@@ -101,14 +104,16 @@ public final class OuterLayerPlusFeature extends Feature {
                 .name(Component.literal("General"))
                 .collapsed(false)
                 .option(keybindButton())
-                .option(booleanOption("Show in pause menu button", true, this::showPauseMenuButton, this::setShowPauseMenuButton))
+                .option(booleanOption("Show in pause menu button", "Adds an OuterLayer+ HUD editor button to the pause menu.", true, this::showPauseMenuButton, this::setShowPauseMenuButton))
                 .build());
         builder.group(OptionGroup.createBuilder()
                 .name(Component.literal("Overlay"))
                 .collapsed(false)
-                .option(booleanOption("Overlay panel", true, this::overlayEnabled, this::setOverlayEnabled))
+                .option(booleanOption("Overlay panel", "Shows the draggable HUD list of currently loaded nearby players.", true, this::overlayEnabled, this::setOverlayEnabled))
+                .option(percentageFieldOption("Background opacity", "Controls how dark the overlay panel background is.", 75, this::panelBackgroundOpacity, this::setPanelBackgroundOpacity))
                 .option(ButtonOption.createBuilder()
                         .name(Component.literal("HUD position editor"))
+                        .description(description("Opens the drag editor for the Overlay panel position and scale."))
                         .text(Component.literal("Open"))
                         .action(screen -> Minecraft.getInstance().setScreenAndShow(new OuterLayerHudEditorScreen(screen, this)))
                         .build())
@@ -116,21 +121,21 @@ public final class OuterLayerPlusFeature extends Feature {
         builder.group(OptionGroup.createBuilder()
                 .name(Component.literal("Tab List"))
                 .collapsed(false)
-                .option(booleanOption("Distance Ring", true, this::distanceRingEnabled, this::setDistanceRingEnabled))
-                .option(booleanOption("Name Recolor", false, this::nameRecolorEnabled, this::setNameRecolorEnabled))
+                .option(booleanOption("Distance Ring", "Draws a colored outline around each player head in the vanilla tab list.", true, this::distanceRingEnabled, this::setDistanceRingEnabled))
+                .option(booleanOption("Name Recolor", "Recolors tab-list player names by their distance tier.", false, this::nameRecolorEnabled, this::setNameRecolorEnabled))
                 .build());
         builder.group(OptionGroup.createBuilder()
                 .name(Component.literal("Distance"))
                 .collapsed(false)
-                .option(thresholdOption("Red threshold", 30, this::redThreshold, this::setRedThreshold))
-                .option(thresholdOption("Yellow threshold", 50, this::yellowThreshold, this::setYellowThreshold))
+                .option(thresholdOption("Red threshold", "Players at or inside this X/Z distance use the red tier.", 30, this::redThreshold, this::setRedThreshold))
+                .option(thresholdOption("Yellow threshold", "Players farther than red and at or inside this X/Z distance use the yellow tier.", 50, this::yellowThreshold, this::setYellowThreshold))
                 .build());
         builder.group(OptionGroup.createBuilder()
                 .name(Component.literal("Color Wheel"))
                 .collapsed(false)
-                .option(colorOption("Red tier", new Color(0xFF0000), this::redColor, this::setRedColor))
-                .option(colorOption("Yellow tier", new Color(0xFFD700), this::yellowColor, this::setYellowColor))
-                .option(colorOption("Green tier", new Color(0x00FF00), this::greenColor, this::setGreenColor))
+                .option(colorOption("Red tier", "Color used for players inside the red threshold.", new Color(0xFF0000), this::redColor, this::setRedColor))
+                .option(colorOption("Yellow tier", "Color used for players between the red and yellow thresholds.", new Color(0xFFD700), this::yellowColor, this::setYellowColor))
+                .option(colorOption("Green tier", "Color used for loaded players beyond the yellow threshold.", new Color(0x00FF00), this::greenColor, this::setGreenColor))
                 .build());
     }
 
@@ -164,13 +169,20 @@ public final class OuterLayerPlusFeature extends Feature {
     }
 
     public OptionalInt tabRingColor(PlayerInfo info) {
-        if (!isDistanceRingActive()) {
+        if (!isEnabled()) {
             return OptionalInt.empty();
         }
 
-        return tabColor(info).stream()
-                .map(ARGB::opaque)
-                .findFirst();
+        AbstractClientPlayer player = playerFor(info.getProfile().id());
+        if (player == null) {
+            return OptionalInt.empty();
+        }
+
+        if (!distanceRingEnabled) {
+            return OptionalInt.of(0xFFFFFFFF);
+        }
+
+        return OptionalInt.of(ARGB.opaque(tierFor(player).rgb()));
     }
 
     public List<TrackedPlayer> collectTrackedPlayers() {
@@ -237,7 +249,7 @@ public final class OuterLayerPlusFeature extends Feature {
         pose.pushMatrix();
         pose.translate(x, y);
         pose.scale((float) scale);
-        fillRounded(graphics, 0, 0, bounds.width(), bounds.height(), 3, 0xC0000000);
+        fillRounded(graphics, 0, 0, bounds.width(), bounds.height(), 3, panelBackgroundColor());
 
         Minecraft client = Minecraft.getInstance();
         int rowY = 4;
@@ -252,7 +264,7 @@ public final class OuterLayerPlusFeature extends Feature {
                         iconX,
                         iconY,
                         12,
-                        false,
+                        true,
                         false,
                         -1);
             } else {
@@ -316,6 +328,7 @@ public final class OuterLayerPlusFeature extends Feature {
         panelX = Math.max(0, NullTweaksConfig.getInt(config, "panelX", 8));
         panelY = Math.max(0, NullTweaksConfig.getInt(config, "panelY", 8));
         panelScale = clampDouble(NullTweaksConfig.getDouble(config, "panelScale", 1.0D), 0.5D, 3.0D);
+        panelBackgroundOpacity = clampInt(NullTweaksConfig.getInt(config, "panelBackgroundOpacity", 75), 0, 100);
     }
 
     @Override
@@ -332,28 +345,32 @@ public final class OuterLayerPlusFeature extends Feature {
         config.addProperty("panelX", panelX);
         config.addProperty("panelY", panelY);
         config.addProperty("panelScale", panelScale);
+        config.addProperty("panelBackgroundOpacity", panelBackgroundOpacity);
     }
 
     private ButtonOption keybindButton() {
         return ButtonOption.createBuilder()
                 .name(Component.literal("Overlay toggle keybind"))
+                .description(description("Opens Minecraft's keybind screen so you can bind the Overlay panel toggle."))
                 .text(OVERLAY_TOGGLE_KEY.getTranslatedKeyMessage())
                 .action(screen -> Minecraft.getInstance().setScreenAndShow(new KeyBindsScreen(screen, Minecraft.getInstance().options)))
                 .build();
     }
 
-    private Option<Boolean> booleanOption(String name, boolean fallback, java.util.function.BooleanSupplier getter, java.util.function.Consumer<Boolean> setter) {
+    private Option<Boolean> booleanOption(String name, String descriptionText, boolean fallback, java.util.function.BooleanSupplier getter, java.util.function.Consumer<Boolean> setter) {
         return Option.<Boolean>createBuilder()
                 .name(Component.literal(name))
+                .description(description(descriptionText))
                 .binding(fallback, getter::getAsBoolean, setter)
                 .controller(BooleanControllerBuilder::create)
                 .instant(true)
                 .build();
     }
 
-    private Option<Integer> thresholdOption(String name, int fallback, java.util.function.IntSupplier getter, java.util.function.IntConsumer setter) {
+    private Option<Integer> thresholdOption(String name, String descriptionText, int fallback, java.util.function.IntSupplier getter, java.util.function.IntConsumer setter) {
         return Option.<Integer>createBuilder()
                 .name(Component.literal(name))
+                .description(description(descriptionText))
                 .binding(fallback, getter::getAsInt, value -> setter.accept(value))
                 .controller(option -> IntegerSliderControllerBuilder.create(option)
                         .range(1, 256)
@@ -363,13 +380,30 @@ public final class OuterLayerPlusFeature extends Feature {
                 .build();
     }
 
-    private Option<Color> colorOption(String name, Color fallback, java.util.function.Supplier<Color> getter, java.util.function.Consumer<Color> setter) {
+    private Option<Integer> percentageFieldOption(String name, String descriptionText, int fallback, java.util.function.IntSupplier getter, java.util.function.IntConsumer setter) {
+        return Option.<Integer>createBuilder()
+                .name(Component.literal(name))
+                .description(description(descriptionText))
+                .binding(fallback, getter::getAsInt, value -> setter.accept(value))
+                .controller(option -> IntegerFieldControllerBuilder.create(option)
+                        .range(0, 100)
+                        .valueFormatter(value -> Component.literal(value + "%")))
+                .instant(true)
+                .build();
+    }
+
+    private Option<Color> colorOption(String name, String descriptionText, Color fallback, java.util.function.Supplier<Color> getter, java.util.function.Consumer<Color> setter) {
         return Option.<Color>createBuilder()
                 .name(Component.literal(name))
+                .description(description(descriptionText))
                 .binding(fallback, getter, setter)
                 .controller(option -> ColorControllerBuilder.create(option).allowAlpha(false))
                 .instant(true)
                 .build();
+    }
+
+    private static OptionDescription description(String text) {
+        return OptionDescription.of(Component.literal(text));
     }
 
     private boolean overlayEnabled() {
@@ -405,6 +439,15 @@ public final class OuterLayerPlusFeature extends Feature {
 
     private void setShowPauseMenuButton(boolean enabled) {
         showPauseMenuButton = enabled;
+        FeatureManager.INSTANCE.saveFeature(this);
+    }
+
+    private int panelBackgroundOpacity() {
+        return panelBackgroundOpacity;
+    }
+
+    private void setPanelBackgroundOpacity(int value) {
+        panelBackgroundOpacity = clampInt(value, 0, 100);
         FeatureManager.INSTANCE.saveFeature(this);
     }
 
@@ -516,6 +559,11 @@ public final class OuterLayerPlusFeature extends Feature {
         graphics.fill(x + width - radius, y + 1, x + width - 1, y + radius, color);
         graphics.fill(x + 1, y + height - radius, x + radius, y + height - 1, color);
         graphics.fill(x + width - radius, y + height - radius, x + width - 1, y + height - 1, color);
+    }
+
+    private int panelBackgroundColor() {
+        int alpha = Math.round(panelBackgroundOpacity * 255.0F / 100.0F);
+        return (alpha << 24) | 0x000000;
     }
 
     private static Color parseColor(String value, Color fallback) {
