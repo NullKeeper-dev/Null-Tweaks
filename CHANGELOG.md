@@ -2,6 +2,12 @@
 
 All notable changes to Null Tweaks will be documented in this file.
 
+## [1.1.1] - 2026-07-12
+
+### Fixed
+
+- Fixed Autoclicker so it keeps clicking while menus, inventories, or other screens are open.
+
 ## [1.1.0] - 2026-07-12
 
 ### Added

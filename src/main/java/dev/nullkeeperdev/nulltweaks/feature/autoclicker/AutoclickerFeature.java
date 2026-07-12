@@ -151,16 +151,7 @@ public final class AutoclickerFeature extends Feature {
         return client != null
                 && client.level != null
                 && client.player != null
-                && client.gameMode != null
-                && !hasOpenScreenOrOverlay(client);
-    }
-
-    private static boolean hasOpenScreenOrOverlay(Minecraft client) {
-        //? if >=26.2 {
-        return client.gui.screen() != null || client.gui.overlay() != null;
-        //?} else {
-        /*return client.screen != null || client.getOverlay() != null;
-        *///?}
+                && client.gameMode != null;
     }
 
     private Option<Integer> intervalOption() {
