@@ -21,7 +21,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.PlayerFaceExtractor;
-import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.options.controls.KeyBindsScreen;
 import net.minecraft.client.multiplayer.PlayerInfo;
 import net.minecraft.client.player.AbstractClientPlayer;
@@ -47,7 +46,6 @@ public final class OuterLayerPlusFeature extends Feature {
     private boolean overlayEnabled = true;
     private boolean distanceRingEnabled = true;
     private boolean nameRecolorEnabled;
-    private boolean showPauseMenuButton = true;
     private int redThreshold = 30;
     private int yellowThreshold = 50;
     private Color redColor = new Color(0xFF0000);
@@ -104,7 +102,6 @@ public final class OuterLayerPlusFeature extends Feature {
                 .name(Component.literal("General"))
                 .collapsed(false)
                 .option(keybindButton())
-                .option(booleanOption("Show in pause menu button", "Adds an OuterLayer+ HUD editor button to the pause menu.", true, this::showPauseMenuButton, this::setShowPauseMenuButton))
                 .build());
         builder.group(OptionGroup.createBuilder()
                 .name(Component.literal("Overlay"))
@@ -137,14 +134,6 @@ public final class OuterLayerPlusFeature extends Feature {
                 .option(colorOption("Yellow tier", "Color used for players between the red and yellow thresholds.", new Color(0xFFD700), this::yellowColor, this::setYellowColor))
                 .option(colorOption("Green tier", "Color used for loaded players beyond the yellow threshold.", new Color(0x00FF00), this::greenColor, this::setGreenColor))
                 .build());
-    }
-
-    public boolean shouldShowPauseMenuButton() {
-        return showPauseMenuButton;
-    }
-
-    public Screen createHudEditorScreen(Screen parent) {
-        return new OuterLayerHudEditorScreen(parent, this);
     }
 
     public boolean isDistanceRingActive() {
@@ -316,7 +305,6 @@ public final class OuterLayerPlusFeature extends Feature {
         overlayEnabled = NullTweaksConfig.getBoolean(config, "overlayEnabled", true);
         distanceRingEnabled = NullTweaksConfig.getBoolean(config, "distanceRingEnabled", true);
         nameRecolorEnabled = NullTweaksConfig.getBoolean(config, "nameRecolorEnabled", false);
-        showPauseMenuButton = NullTweaksConfig.getBoolean(config, "showPauseMenuButton", true);
         redThreshold = clampInt(NullTweaksConfig.getInt(config, "redThreshold", 30), 1, 512);
         yellowThreshold = clampInt(NullTweaksConfig.getInt(config, "yellowThreshold", 50), 1, 512);
         if (yellowThreshold < redThreshold) {
@@ -336,7 +324,6 @@ public final class OuterLayerPlusFeature extends Feature {
         config.addProperty("overlayEnabled", overlayEnabled);
         config.addProperty("distanceRingEnabled", distanceRingEnabled);
         config.addProperty("nameRecolorEnabled", nameRecolorEnabled);
-        config.addProperty("showPauseMenuButton", showPauseMenuButton);
         config.addProperty("redThreshold", redThreshold);
         config.addProperty("yellowThreshold", yellowThreshold);
         config.addProperty("redColor", colorString(redColor));
@@ -430,15 +417,6 @@ public final class OuterLayerPlusFeature extends Feature {
 
     private void setNameRecolorEnabled(boolean enabled) {
         nameRecolorEnabled = enabled;
-        FeatureManager.INSTANCE.saveFeature(this);
-    }
-
-    private boolean showPauseMenuButton() {
-        return showPauseMenuButton;
-    }
-
-    private void setShowPauseMenuButton(boolean enabled) {
-        showPauseMenuButton = enabled;
         FeatureManager.INSTANCE.saveFeature(this);
     }
 

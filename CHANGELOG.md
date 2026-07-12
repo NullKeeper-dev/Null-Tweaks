@@ -2,6 +2,15 @@
 
 All notable changes to Null Tweaks will be documented in this file.
 
+## [1.0.1] - 2026-07-12
+
+### Fixed
+
+- Fixed Freecam so enabling it mid-air lets the physical player continue normal vanilla physics with movement input cleared instead of freezing in place.
+- Fixed Freecam toggles while movement keys are held by clearing stale movement flags, jump state, sprint/sneak state, travel input, and player velocity at the toggle instant.
+- Fixed Freecam camera coordinates for F3 and camera-aware mods by exposing the detached camera entity while Freecam is active.
+- Removed the OuterLayer+ HUD editor button from Minecraft's pause menu while keeping the feature and editor available from Null Tweaks settings.
+
 ## [1.0.0] - 2026-07-09
 
 ### Removed

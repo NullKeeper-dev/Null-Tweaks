@@ -20,6 +20,7 @@ import net.minecraft.client.gui.screens.options.controls.KeyBindsScreen;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.Marker;
 import net.minecraft.world.entity.player.Input;
@@ -38,7 +39,6 @@ public final class FreecamFeature extends Feature {
     private boolean showHand = true;
     private boolean active;
     private Marker cameraEntity;
-    private FrozenPlayerState frozenPlayerState;
     private Boolean previousSmartCull;
 
     public FreecamFeature() {
@@ -58,11 +58,13 @@ public final class FreecamFeature extends Feature {
         }
     }
 
-    public static void freezeLocalPlayer(LocalPlayer player) {
+    public static Entity cameraEntity() {
         FreecamFeature feature = instance;
-        if (feature != null && feature.isEnabled() && feature.active && feature.frozenPlayerState != null) {
-            feature.frozenPlayerState.applyIfMatches(player);
+        if (feature != null && feature.isEnabled() && feature.active) {
+            return feature.cameraEntity;
         }
+
+        return null;
     }
 
     public static CameraState cameraState() {
@@ -118,9 +120,8 @@ public final class FreecamFeature extends Feature {
         }
 
         client.smartCull = false;
-        frozenPlayerState.applyIfMatches(client.player);
         moveCamera(client);
-        frozenPlayerState.applyIfMatches(client.player);
+        clearPlayerInput(client.player);
     }
 
     @Override
@@ -154,7 +155,6 @@ public final class FreecamFeature extends Feature {
 
         LocalPlayer player = client.player;
         active = true;
-        frozenPlayerState = FrozenPlayerState.capture(player);
         previousSmartCull = client.smartCull;
         client.smartCull = false;
 
@@ -176,14 +176,10 @@ public final class FreecamFeature extends Feature {
         cameraEntity.setDeltaMovement(Vec3.ZERO);
         cameraEntity.setOldPosAndRot();
 
-        clearPlayerInput(player);
-        player.setDeltaMovement(Vec3.ZERO);
-        player.fallDistance = 0.0D;
+        resetPlayerMovementState(player);
         if (client.gameMode != null) {
             client.gameMode.stopDestroyBlock();
         }
-
-        frozenPlayerState.applyIfMatches(player);
     }
 
     private void deactivate(Minecraft client) {
@@ -192,10 +188,8 @@ public final class FreecamFeature extends Feature {
             return;
         }
 
-        LocalPlayer player = client.player;
-        if (player != null && frozenPlayerState != null) {
-            frozenPlayerState.applyIfMatches(player);
-            clearPlayerInput(player);
+        if (client.player != null) {
+            resetPlayerMovementState(client.player);
         }
 
         restoreSmartCull(client);
@@ -205,7 +199,6 @@ public final class FreecamFeature extends Feature {
     private void clearRuntimeState() {
         active = false;
         cameraEntity = null;
-        frozenPlayerState = null;
         previousSmartCull = null;
     }
 
@@ -329,6 +322,17 @@ public final class FreecamFeature extends Feature {
         }
     }
 
+    private static void resetPlayerMovementState(LocalPlayer player) {
+        clearPlayerInput(player);
+        player.xxa = 0.0F;
+        player.yya = 0.0F;
+        player.zza = 0.0F;
+        player.setJumping(false);
+        player.setSprinting(false);
+        player.setShiftKeyDown(false);
+        player.setDeltaMovement(Vec3.ZERO);
+    }
+
     private static double clampDouble(double value, double min, double max) {
         return Math.max(min, Math.min(max, value));
     }
@@ -348,32 +352,5 @@ public final class FreecamFeature extends Feature {
     }
 
     public record CameraState(Vec3 position, float yRot, float xRot) {
-    }
-
-    private record FrozenPlayerState(LocalPlayer player, Vec3 position, float yRot, float xRot) {
-        static FrozenPlayerState capture(LocalPlayer player) {
-            return new FrozenPlayerState(player, player.position(), player.getYRot(), player.getXRot());
-        }
-
-        void applyIfMatches(LocalPlayer currentPlayer) {
-            if (currentPlayer != player) {
-                return;
-            }
-
-            currentPlayer.setPos(position);
-            currentPlayer.xo = position.x;
-            currentPlayer.yo = position.y;
-            currentPlayer.zo = position.z;
-            currentPlayer.xOld = position.x;
-            currentPlayer.yOld = position.y;
-            currentPlayer.zOld = position.z;
-            currentPlayer.setYRot(yRot);
-            currentPlayer.setXRot(xRot);
-            currentPlayer.yRotO = yRot;
-            currentPlayer.xRotO = xRot;
-            currentPlayer.setDeltaMovement(Vec3.ZERO);
-            currentPlayer.fallDistance = 0.0D;
-            clearPlayerInput(currentPlayer);
-        }
     }
 }
