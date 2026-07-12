@@ -54,14 +54,6 @@ gameplay.
   <sub>Nametag Tweaks keeps player names easier to read at a glance.</sub>
 </p>
 
-<p align="center">
-  <img src="assets/gallery/Freecam.png" alt="Freecam showcase" width="760">
-</p>
-
-<p align="center">
-  <sub>Freecam gives flexible client-side viewing while leaving gameplay state alone.</sub>
-</p>
-
 ## Requirements
 
 - Fabric Loader
