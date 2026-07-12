@@ -1,7 +1,6 @@
 package dev.nullkeeperdev.nulltweaks.feature.raidmobhighlight;
 
 import com.google.gson.JsonObject;
-import dev.isxander.yacl3.api.ConfigCategory;
 import dev.isxander.yacl3.api.Option;
 import dev.isxander.yacl3.api.OptionDescription;
 import dev.isxander.yacl3.api.OptionGroup;
@@ -74,15 +73,11 @@ public final class RaidMobHighlightFeature extends Feature {
     }
 
     @Override
-    public void buildConfig(ConfigCategory.Builder builder) {
-        builder.group(OptionGroup.createBuilder()
-                .name(Component.literal("Raid Mob Highlight"))
-                .collapsed(false)
-                .option(pillagerLeaderToggleOption())
+    public void buildConfig(OptionGroup.Builder builder) {
+        builder.option(pillagerLeaderToggleOption())
                 .option(pillagerLeaderColorOption())
                 .option(otherRaidMobsToggleOption())
-                .option(otherRaidMobColorOption())
-                .build());
+                .option(otherRaidMobColorOption());
     }
 
     @Override

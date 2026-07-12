@@ -3,7 +3,6 @@ package dev.nullkeeperdev.nulltweaks.feature.autoclicker;
 import com.google.gson.JsonObject;
 import com.mojang.blaze3d.platform.InputConstants;
 import dev.isxander.yacl3.api.ButtonOption;
-import dev.isxander.yacl3.api.ConfigCategory;
 import dev.isxander.yacl3.api.Option;
 import dev.isxander.yacl3.api.OptionDescription;
 import dev.isxander.yacl3.api.OptionGroup;
@@ -102,14 +101,10 @@ public final class AutoclickerFeature extends Feature {
     }
 
     @Override
-    public void buildConfig(ConfigCategory.Builder builder) {
-        builder.group(OptionGroup.createBuilder()
-                .name(Component.literal("Autoclicker"))
-                .collapsed(false)
-                .option(intervalOption())
+    public void buildConfig(OptionGroup.Builder builder) {
+        builder.option(intervalOption())
                 .option(clickTypeOption())
-                .option(keybindButton())
-                .build());
+                .option(keybindButton());
     }
 
     @Override

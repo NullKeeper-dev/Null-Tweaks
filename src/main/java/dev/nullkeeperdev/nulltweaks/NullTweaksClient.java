@@ -5,6 +5,7 @@ import dev.nullkeeperdev.nulltweaks.feature.FeatureManager;
 import dev.nullkeeperdev.nulltweaks.feature.autoclicker.AutoclickerFeature;
 import dev.nullkeeperdev.nulltweaks.feature.freecam.FreecamFeature;
 import dev.nullkeeperdev.nulltweaks.feature.librarianscanner.LibrarianTradeScannerFeature;
+import dev.nullkeeperdev.nulltweaks.feature.maxenchant.MaxEnchantIndicatorFeature;
 import dev.nullkeeperdev.nulltweaks.feature.nametags.NametagTweaksFeature;
 import dev.nullkeeperdev.nulltweaks.feature.nobobber.NoBobberFeature;
 import dev.nullkeeperdev.nulltweaks.feature.nofog.NoFogFeature;
@@ -35,6 +36,7 @@ public final class NullTweaksClient implements ClientModInitializer {
         featureManager.register(new AutoclickerFeature());
         featureManager.register(new RaidMobHighlightFeature());
         featureManager.register(new LibrarianTradeScannerFeature());
+        featureManager.register(new MaxEnchantIndicatorFeature());
         featureManager.initialize(config);
         featureManager.registerHooks();
     }

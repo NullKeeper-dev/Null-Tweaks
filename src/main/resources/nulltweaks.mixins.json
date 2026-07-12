@@ -12,6 +12,8 @@
     "FishingHookRendererNoBobberMixin",
     "FogRendererNoFogMixin",
     "GameRendererFreecamMixin",
+    "EnchantmentScreenMaxEnchantIndicatorMixin",
+    "ItemEnchantmentsMaxEnchantIndicatorMixin",
     "KeyboardInputFreecamMixin",
     "LavaFogEnvironmentFreecamMixin",
     "LivingEntityRendererRaidMobHighlightMixin",

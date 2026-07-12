@@ -1,7 +1,7 @@
 package dev.nullkeeperdev.nulltweaks.feature;
 
 import com.google.gson.JsonObject;
-import dev.isxander.yacl3.api.ConfigCategory;
+import dev.isxander.yacl3.api.OptionGroup;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
@@ -69,7 +69,7 @@ public abstract class Feature {
     public void onWorldRender(LevelRenderContext context) {
     }
 
-    public abstract void buildConfig(ConfigCategory.Builder builder);
+    public abstract void buildConfig(OptionGroup.Builder builder);
 
     protected void loadSettings(JsonObject config) {
     }

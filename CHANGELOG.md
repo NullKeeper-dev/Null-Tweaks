@@ -2,6 +2,17 @@
 
 All notable changes to Null Tweaks will be documented in this file.
 
+## [1.2.0] - 2026-07-13
+
+### Added
+
+- Added Max Enchant Indicator to color max-level enchantments in item tooltips, enchanting table previews, and Librarian Trade Scanner labels with solid or chroma colors.
+
+### Changed
+
+- Grouped the Null Tweaks config screen into Visuals, World Info, and Movement & Automation tabs with each feature collapsed by default.
+- Added descriptions to each feature group in the Null Tweaks config screen.
+
 ## [1.1.1] - 2026-07-12
 
 ### Fixed

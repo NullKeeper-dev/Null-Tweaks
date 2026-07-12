@@ -12,7 +12,6 @@ import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.suggestion.SuggestionProvider;
 import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 import dev.isxander.yacl3.api.ButtonOption;
-import dev.isxander.yacl3.api.ConfigCategory;
 import dev.isxander.yacl3.api.LabelOption;
 import dev.isxander.yacl3.api.Option;
 import dev.isxander.yacl3.api.OptionDescription;
@@ -24,6 +23,7 @@ import dev.nullkeeperdev.nulltweaks.NullTweaksClient;
 import dev.nullkeeperdev.nulltweaks.config.NullTweaksConfig;
 import dev.nullkeeperdev.nulltweaks.feature.Feature;
 import dev.nullkeeperdev.nulltweaks.feature.FeatureManager;
+import dev.nullkeeperdev.nulltweaks.feature.maxenchant.MaxEnchantIndicatorFeature;
 import it.unimi.dsi.fastutil.objects.Object2IntMap;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommands;
@@ -167,18 +167,14 @@ public final class LibrarianTradeScannerFeature extends Feature {
     }
 
     @Override
-    public void buildConfig(ConfigCategory.Builder builder) {
-        builder.group(OptionGroup.createBuilder()
-                .name(Component.literal("Librarian Trade Scanner (Experimental)"))
-                .description(description("This feature intercepts trade data in the background and may occasionally be slow or briefly inaccurate, especially near many villagers at once. If a trade looks wrong, manually opening that villager's trading menu will always show the correct data."))
-                .collapsed(false)
+    public void buildConfig(OptionGroup.Builder builder) {
+        builder.description(description("This feature intercepts trade data in the background and may occasionally be slow or briefly inaccurate, especially near many villagers at once. If a trade looks wrong, manually opening that villager's trading menu will always show the correct data."))
                 .option(scanRadiusOption())
                 .option(labelTextColorOption())
                 .option(labelScaleOption())
                 .option(searchHighlightColorOption())
                 .option(activeSearchLabelOption())
-                .option(clearSearchButtonOption())
-                .build());
+                .option(clearSearchButtonOption());
     }
 
     private static void registerCommandTree(CommandDispatcher<FabricClientCommandSource> dispatcher) {
@@ -309,7 +305,8 @@ public final class LibrarianTradeScannerFeature extends Feature {
         }
 
         return record.trades.stream()
-                .map(trade -> (Component) Component.literal(trade.label(currentHeroOfTheVillageLevel())).withStyle(style -> style.withColor(color)))
+                .map(trade -> (Component) Component.literal(trade.label(currentHeroOfTheVillageLevel()))
+                        .withStyle(style -> style.withColor(MaxEnchantIndicatorFeature.indicatorColorFor(trade.enchantmentId(), trade.level()).orElse(color))))
                 .toList();
     }
 

@@ -1,6 +1,6 @@
 package dev.nullkeeperdev.nulltweaks.feature.nobobber;
 
-import dev.isxander.yacl3.api.ConfigCategory;
+import dev.isxander.yacl3.api.OptionGroup;
 import dev.nullkeeperdev.nulltweaks.feature.Feature;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.entity.player.Player;
@@ -30,6 +30,6 @@ public final class NoBobberFeature extends Feature {
     }
 
     @Override
-    public void buildConfig(ConfigCategory.Builder builder) {
+    public void buildConfig(OptionGroup.Builder builder) {
     }
 }

@@ -3,7 +3,7 @@ package dev.nullkeeperdev.nulltweaks.feature.outerlayerplus;
 import com.google.gson.JsonObject;
 import com.mojang.blaze3d.platform.InputConstants;
 import dev.isxander.yacl3.api.ButtonOption;
-import dev.isxander.yacl3.api.ConfigCategory;
+import dev.isxander.yacl3.api.LabelOption;
 import dev.isxander.yacl3.api.Option;
 import dev.isxander.yacl3.api.OptionDescription;
 import dev.isxander.yacl3.api.OptionGroup;
@@ -97,15 +97,10 @@ public final class OuterLayerPlusFeature extends Feature {
     }
 
     @Override
-    public void buildConfig(ConfigCategory.Builder builder) {
-        builder.group(OptionGroup.createBuilder()
-                .name(Component.literal("General"))
-                .collapsed(false)
+    public void buildConfig(OptionGroup.Builder builder) {
+        builder.option(sectionLabel("General"))
                 .option(keybindButton())
-                .build());
-        builder.group(OptionGroup.createBuilder()
-                .name(Component.literal("Overlay"))
-                .collapsed(false)
+                .option(sectionLabel("Overlay"))
                 .option(booleanOption("Overlay panel", "Shows the draggable HUD list of currently loaded nearby players.", true, this::overlayEnabled, this::setOverlayEnabled))
                 .option(percentageFieldOption("Background opacity", "Controls how dark the overlay panel background is.", 75, this::panelBackgroundOpacity, this::setPanelBackgroundOpacity))
                 .option(ButtonOption.createBuilder()
@@ -114,26 +109,16 @@ public final class OuterLayerPlusFeature extends Feature {
                         .text(Component.literal("Open"))
                         .action(screen -> Minecraft.getInstance().setScreenAndShow(new OuterLayerHudEditorScreen(screen, this)))
                         .build())
-                .build());
-        builder.group(OptionGroup.createBuilder()
-                .name(Component.literal("Tab List"))
-                .collapsed(false)
+                .option(sectionLabel("Tab List"))
                 .option(booleanOption("Distance Ring", "Draws a colored outline around each player head in the vanilla tab list.", true, this::distanceRingEnabled, this::setDistanceRingEnabled))
                 .option(booleanOption("Name Recolor", "Recolors tab-list player names by their distance tier.", false, this::nameRecolorEnabled, this::setNameRecolorEnabled))
-                .build());
-        builder.group(OptionGroup.createBuilder()
-                .name(Component.literal("Distance"))
-                .collapsed(false)
+                .option(sectionLabel("Distance"))
                 .option(thresholdOption("Red threshold", "Players at or inside this X/Z distance use the red tier.", 30, this::redThreshold, this::setRedThreshold))
                 .option(thresholdOption("Yellow threshold", "Players farther than red and at or inside this X/Z distance use the yellow tier.", 50, this::yellowThreshold, this::setYellowThreshold))
-                .build());
-        builder.group(OptionGroup.createBuilder()
-                .name(Component.literal("Color Wheel"))
-                .collapsed(false)
+                .option(sectionLabel("Color Wheel"))
                 .option(colorOption("Red tier", "Color used for players inside the red threshold.", new Color(0xFF0000), this::redColor, this::setRedColor))
                 .option(colorOption("Yellow tier", "Color used for players between the red and yellow thresholds.", new Color(0xFFD700), this::yellowColor, this::setYellowColor))
-                .option(colorOption("Green tier", "Color used for loaded players beyond the yellow threshold.", new Color(0x00FF00), this::greenColor, this::setGreenColor))
-                .build());
+                .option(colorOption("Green tier", "Color used for loaded players beyond the yellow threshold.", new Color(0x00FF00), this::greenColor, this::setGreenColor));
     }
 
     public boolean isDistanceRingActive() {
@@ -387,6 +372,10 @@ public final class OuterLayerPlusFeature extends Feature {
                 .controller(option -> ColorControllerBuilder.create(option).allowAlpha(false))
                 .instant(true)
                 .build();
+    }
+
+    private static LabelOption sectionLabel(String name) {
+        return LabelOption.create(Component.literal(name));
     }
 
     private static OptionDescription description(String text) {

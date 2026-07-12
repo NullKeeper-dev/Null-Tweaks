@@ -1,7 +1,6 @@
 package dev.nullkeeperdev.nulltweaks.feature.nametags;
 
 import com.google.gson.JsonObject;
-import dev.isxander.yacl3.api.ConfigCategory;
 import dev.isxander.yacl3.api.Option;
 import dev.isxander.yacl3.api.OptionDescription;
 import dev.isxander.yacl3.api.OptionGroup;
@@ -41,16 +40,12 @@ public final class NametagTweaksFeature extends Feature {
     }
 
     @Override
-    public void buildConfig(ConfigCategory.Builder builder) {
-        builder.group(OptionGroup.createBuilder()
-                .name(Component.literal("Nametag Tweaks"))
-                .collapsed(false)
-                .option(scaleOption())
+    public void buildConfig(OptionGroup.Builder builder) {
+        builder.option(scaleOption())
                 .option(backgroundOpacityOption())
                 .option(colorOption("Text color", "Overrides the full nametag text color.", new Color(0xFFFFFF), this::textColor, this::setTextColor))
                 .option(booleanOption("Bold", "Renders every affected nametag with bold text.", false, this::bold, this::setBold))
-                .option(booleanOption("Compensate nametag scale while zoomed", "Keeps nametags readable when the current FOV is lower than your normal FOV.", true, this::zoomCompensation, this::setZoomCompensation))
-                .build());
+                .option(booleanOption("Compensate nametag scale while zoomed", "Keeps nametags readable when the current FOV is lower than your normal FOV.", true, this::zoomCompensation, this::setZoomCompensation));
     }
 
     public boolean active() {

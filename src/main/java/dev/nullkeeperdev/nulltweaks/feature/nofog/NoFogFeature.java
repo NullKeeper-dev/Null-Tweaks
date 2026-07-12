@@ -1,7 +1,6 @@
 package dev.nullkeeperdev.nulltweaks.feature.nofog;
 
 import com.google.gson.JsonObject;
-import dev.isxander.yacl3.api.ConfigCategory;
 import dev.isxander.yacl3.api.Option;
 import dev.isxander.yacl3.api.OptionDescription;
 import dev.isxander.yacl3.api.OptionGroup;
@@ -91,17 +90,13 @@ public final class NoFogFeature extends Feature {
     }
 
     @Override
-    public void buildConfig(ConfigCategory.Builder builder) {
-        builder.group(OptionGroup.createBuilder()
-                .name(Component.literal("Fog Types"))
-                .collapsed(false)
-                .option(booleanOption("Lava fog", "Disables the fog applied while the camera is inside lava.", this::lavaFog, this::setLavaFog))
+    public void buildConfig(OptionGroup.Builder builder) {
+        builder.option(booleanOption("Lava fog", "Disables the fog applied while the camera is inside lava.", this::lavaFog, this::setLavaFog))
                 .option(booleanOption("Water fog", "Disables the fog applied while the camera is underwater.", this::waterFog, this::setWaterFog))
                 .option(booleanOption("Powder snow fog", "Disables the fog applied while the camera is inside powder snow.", this::powderSnowFog, this::setPowderSnowFog))
                 .option(booleanOption("Blindness fog", "Disables the visual fog from the Blindness status effect without removing the effect.", this::blindnessFog, this::setBlindnessFog))
                 .option(booleanOption("Darkness fog", "Disables the visual fog from the Darkness status effect without removing the effect.", this::darknessFog, this::setDarknessFog))
-                .option(booleanOption("Atmospheric/world fog", "Disables normal render-distance, weather, biome, and ambient world fog.", this::atmosphericFog, this::setAtmosphericFog))
-                .build());
+                .option(booleanOption("Atmospheric/world fog", "Disables normal render-distance, weather, biome, and ambient world fog.", this::atmosphericFog, this::setAtmosphericFog));
     }
 
     @Override
