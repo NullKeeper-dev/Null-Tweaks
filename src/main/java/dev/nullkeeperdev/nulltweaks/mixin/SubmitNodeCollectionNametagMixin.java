@@ -2,6 +2,8 @@ package dev.nullkeeperdev.nulltweaks.mixin;
 
 import dev.nullkeeperdev.nulltweaks.feature.nametags.NametagTweaksFeature;
 import dev.nullkeeperdev.nulltweaks.feature.nametags.NametagTweaksRenderContext;
+import dev.nullkeeperdev.nulltweaks.feature.librarianscanner.LibrarianScannerRenderContext;
+import dev.nullkeeperdev.nulltweaks.feature.librarianscanner.LibrarianTradeScannerFeature;
 import net.minecraft.client.renderer.SubmitNodeCollection;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -14,11 +16,14 @@ public abstract class SubmitNodeCollectionNametagMixin {
     @ModifyArgs(method = "submitNameTag", at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/vertex/PoseStack;scale(FFF)V"), require = 0)
     private void nulltweaks$scaleNametag(Args args) {
         NametagTweaksFeature feature = NametagTweaksFeature.instance();
-        if (feature == null || !NametagTweaksRenderContext.active()) {
-            return;
+        float scale = 1.0F;
+        if (feature != null && NametagTweaksRenderContext.active()) {
+            scale *= feature.renderScaleMultiplier();
+        }
+        if (LibrarianScannerRenderContext.active()) {
+            scale *= LibrarianTradeScannerFeature.labelScale();
         }
 
-        float scale = feature.renderScaleMultiplier();
         args.set(0, ((Float) args.get(0)) * scale);
         args.set(1, ((Float) args.get(1)) * scale);
         args.set(2, ((Float) args.get(2)) * scale);

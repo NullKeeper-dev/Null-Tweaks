@@ -4,10 +4,12 @@ import dev.nullkeeperdev.nulltweaks.config.NullTweaksConfig;
 import dev.nullkeeperdev.nulltweaks.feature.FeatureManager;
 import dev.nullkeeperdev.nulltweaks.feature.autoclicker.AutoclickerFeature;
 import dev.nullkeeperdev.nulltweaks.feature.freecam.FreecamFeature;
+import dev.nullkeeperdev.nulltweaks.feature.librarianscanner.LibrarianTradeScannerFeature;
 import dev.nullkeeperdev.nulltweaks.feature.nametags.NametagTweaksFeature;
 import dev.nullkeeperdev.nulltweaks.feature.nobobber.NoBobberFeature;
 import dev.nullkeeperdev.nulltweaks.feature.nofog.NoFogFeature;
 import dev.nullkeeperdev.nulltweaks.feature.outerlayerplus.OuterLayerPlusFeature;
+import dev.nullkeeperdev.nulltweaks.feature.raidmobhighlight.RaidMobHighlightFeature;
 import dev.nullkeeperdev.nulltweaks.input.NullTweaksKeyMappings;
 import net.fabricmc.api.ClientModInitializer;
 import org.slf4j.Logger;
@@ -22,6 +24,7 @@ public final class NullTweaksClient implements ClientModInitializer {
         LOGGER.info("Null Tweaks initializing");
 
         NullTweaksKeyMappings.register();
+        LibrarianTradeScannerFeature.registerCommands();
         NullTweaksConfig config = NullTweaksConfig.load();
         FeatureManager featureManager = FeatureManager.INSTANCE;
         featureManager.register(new OuterLayerPlusFeature());
@@ -30,6 +33,8 @@ public final class NullTweaksClient implements ClientModInitializer {
         featureManager.register(new NoBobberFeature());
         featureManager.register(new NoFogFeature());
         featureManager.register(new AutoclickerFeature());
+        featureManager.register(new RaidMobHighlightFeature());
+        featureManager.register(new LibrarianTradeScannerFeature());
         featureManager.initialize(config);
         featureManager.registerHooks();
     }

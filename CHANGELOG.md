@@ -2,6 +2,25 @@
 
 All notable changes to Null Tweaks will be documented in this file.
 
+## [1.1.0] - 2026-07-12
+
+### Added
+
+- Added Librarian Trade Scanner to background-scan nearby librarians for enchanted book trades and render configurable floating trade labels.
+- Added Enchant Search Highlight commands and config controls to glow known librarians offering a searched enchanted book.
+- Added Raid Mob Highlight with separate through-wall colors for banner-carrying Pillager leaders and other raid mobs.
+
+### Changed
+
+- Persisted Librarian Trade Scanner results per world/server using villager UUIDs so cached labels can reappear after relog without reopening trades.
+- Marked Librarian Trade Scanner as experimental and rewrote scanning around a closest-first single-flight queue with strict merchant window correlation.
+
+### Fixed
+
+- Fixed Librarian Trade Scanner prices to cache base emerald costs and apply Hero of the Village discounts live from the player's current effect level.
+- Fixed Librarian Trade Scanner manual interactions so real librarian clicks preempt queued or in-flight background scans instead of being delayed or auto-closed.
+- Fixed raid mob highlighting to route qualifying mobs through Minecraft's vanilla outline-pass decision so local outlines can render through walls.
+
 ## [1.0.1] - 2026-07-12
 
 ### Fixed

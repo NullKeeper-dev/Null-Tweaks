@@ -3,6 +3,7 @@ build/
 out/
 run/
 runs/
+config/nulltweaks/librarian_cache/
 
 versions/*/build/
 versions/*/run/
