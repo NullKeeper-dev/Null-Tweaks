@@ -25,6 +25,8 @@ import net.minecraft.world.entity.Marker;
 import net.minecraft.world.entity.player.Input;
 import net.minecraft.world.phys.Vec3;
 
+import java.util.UUID;
+
 public final class FreecamFeature extends Feature {
     private static final KeyMapping TOGGLE_KEY = KeyMappingHelper.registerKeyMapping(new KeyMapping(
             "key.nulltweaks.freecam.toggle",
@@ -38,6 +40,7 @@ public final class FreecamFeature extends Feature {
     private boolean showHand = true;
     private boolean active;
     private Marker cameraEntity;
+    private FrozenPlayerState frozenPlayerState;
     private Boolean previousSmartCull;
 
     public FreecamFeature() {
@@ -121,6 +124,11 @@ public final class FreecamFeature extends Feature {
         client.smartCull = false;
         moveCamera(client);
         clearPlayerInput(client.player);
+        if (frozenPlayerState == null) {
+            captureFrozenStateIfGrounded(client.player);
+        } else {
+            frozenPlayerState.applyIfMatches(client.player);
+        }
     }
 
     @Override
@@ -171,7 +179,8 @@ public final class FreecamFeature extends Feature {
         cameraEntity.setDeltaMovement(Vec3.ZERO);
         cameraEntity.setOldPosAndRot();
 
-        resetPlayerMovementState(player);
+        frozenPlayerState = null;
+        clearPlayerInput(player);
         if (client.gameMode != null) {
             client.gameMode.stopDestroyBlock();
         }
@@ -183,7 +192,7 @@ public final class FreecamFeature extends Feature {
             return;
         }
 
-        if (client.player != null) {
+        if (client.player != null && frozenPlayerState != null) {
             resetPlayerMovementState(client.player);
         }
 
@@ -194,6 +203,7 @@ public final class FreecamFeature extends Feature {
     private void clearRuntimeState() {
         active = false;
         cameraEntity = null;
+        frozenPlayerState = null;
         previousSmartCull = null;
     }
 
@@ -205,6 +215,16 @@ public final class FreecamFeature extends Feature {
 
     private boolean isUsable(Minecraft client) {
         return client != null && client.level != null && client.player != null;
+    }
+
+    private void captureFrozenStateIfGrounded(LocalPlayer player) {
+        if (!player.onGround()) {
+            return;
+        }
+
+        resetPlayerMovementState(player);
+        frozenPlayerState = FrozenPlayerState.capture(player);
+        frozenPlayerState.applyIfMatches(player);
     }
 
     private void moveCamera(Minecraft client) {
@@ -315,16 +335,16 @@ public final class FreecamFeature extends Feature {
                 access.nulltweaks$clearFreecamMovement();
             }
         }
+        player.setJumping(false);
+        player.xxa = 0.0F;
+        player.yya = 0.0F;
+        player.zza = 0.0F;
+        player.setSprinting(false);
+        player.setShiftKeyDown(false);
     }
 
     private static void resetPlayerMovementState(LocalPlayer player) {
         clearPlayerInput(player);
-        player.xxa = 0.0F;
-        player.yya = 0.0F;
-        player.zza = 0.0F;
-        player.setJumping(false);
-        player.setSprinting(false);
-        player.setShiftKeyDown(false);
         player.setDeltaMovement(Vec3.ZERO);
     }
 
@@ -347,5 +367,50 @@ public final class FreecamFeature extends Feature {
     }
 
     public record CameraState(Vec3 position, float yRot, float xRot) {
+    }
+
+    private record FrozenPlayerState(
+            UUID playerId,
+            double x,
+            double y,
+            double z,
+            float yRot,
+            float xRot,
+            Vec3 deltaMovement,
+            double fallDistance,
+            boolean onGround) {
+        private static FrozenPlayerState capture(LocalPlayer player) {
+            return new FrozenPlayerState(
+                    player.getUUID(),
+                    player.getX(),
+                    player.getY(),
+                    player.getZ(),
+                    player.getYRot(),
+                    player.getXRot(),
+                    player.getDeltaMovement(),
+                    player.fallDistance,
+                    player.onGround());
+        }
+
+        private void applyIfMatches(LocalPlayer player) {
+            if (!player.getUUID().equals(playerId)) {
+                return;
+            }
+
+            player.setPos(x, y, z);
+            player.xo = x;
+            player.yo = y;
+            player.zo = z;
+            player.xOld = x;
+            player.yOld = y;
+            player.zOld = z;
+            player.setYRot(yRot);
+            player.setXRot(xRot);
+            player.yRotO = yRot;
+            player.xRotO = xRot;
+            player.setDeltaMovement(deltaMovement);
+            player.fallDistance = fallDistance;
+            player.setOnGround(true);
+        }
     }
 }

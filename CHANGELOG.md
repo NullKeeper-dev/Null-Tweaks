@@ -2,6 +2,12 @@
 
 All notable changes to Null Tweaks will be documented in this file.
 
+## [1.2.1] - 2026-07-13
+
+### Fixed
+
+- Fixed Freecam so toggling during a jump lets the player land naturally before freezing, then keeps the frozen player reported as grounded to prevent false server flying flags.
+
 ## [1.2.0] - 2026-07-13
 
 ### Added
