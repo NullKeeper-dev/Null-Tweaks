@@ -10,6 +10,7 @@ import dev.nullkeeperdev.nulltweaks.feature.nametags.NametagTweaksFeature;
 import dev.nullkeeperdev.nulltweaks.feature.nobobber.NoBobberFeature;
 import dev.nullkeeperdev.nulltweaks.feature.nofog.NoFogFeature;
 import dev.nullkeeperdev.nulltweaks.feature.outerlayerplus.OuterLayerPlusFeature;
+import dev.nullkeeperdev.nulltweaks.feature.quarry.QuarryFeature;
 import dev.nullkeeperdev.nulltweaks.feature.raidmobhighlight.RaidMobHighlightFeature;
 import dev.nullkeeperdev.nulltweaks.input.NullTweaksKeyMappings;
 import net.fabricmc.api.ClientModInitializer;
@@ -26,6 +27,8 @@ public final class NullTweaksClient implements ClientModInitializer {
 
         NullTweaksKeyMappings.register();
         LibrarianTradeScannerFeature.registerCommands();
+        QuarryFeature.registerCommands();
+        QuarryFeature.registerMissingBaritoneWarningHooks();
         NullTweaksConfig config = NullTweaksConfig.load();
         FeatureManager featureManager = FeatureManager.INSTANCE;
         featureManager.register(new OuterLayerPlusFeature());
@@ -34,6 +37,7 @@ public final class NullTweaksClient implements ClientModInitializer {
         featureManager.register(new NoBobberFeature());
         featureManager.register(new NoFogFeature());
         featureManager.register(new AutoclickerFeature());
+        featureManager.register(new QuarryFeature());
         featureManager.register(new RaidMobHighlightFeature());
         featureManager.register(new LibrarianTradeScannerFeature());
         featureManager.register(new MaxEnchantIndicatorFeature());

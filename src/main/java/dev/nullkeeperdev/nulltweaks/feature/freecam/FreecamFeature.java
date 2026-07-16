@@ -11,6 +11,7 @@ import dev.isxander.yacl3.api.controller.DoubleSliderControllerBuilder;
 import dev.nullkeeperdev.nulltweaks.config.NullTweaksConfig;
 import dev.nullkeeperdev.nulltweaks.feature.Feature;
 import dev.nullkeeperdev.nulltweaks.feature.FeatureManager;
+import dev.nullkeeperdev.nulltweaks.feature.quarry.QuarryFeature;
 import dev.nullkeeperdev.nulltweaks.input.NullTweaksKeyMappings;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.minecraft.client.KeyMapping;
@@ -51,6 +52,10 @@ public final class FreecamFeature extends Feature {
     public static boolean isActive() {
         FreecamFeature feature = instance;
         return feature != null && feature.isEnabled() && feature.active;
+    }
+
+    public static boolean shouldSuppressPlayerInput() {
+        return isActive() && !QuarryFeature.isRunning();
     }
 
     public static void turnCamera(double deltaX, double deltaY) {
@@ -123,6 +128,11 @@ public final class FreecamFeature extends Feature {
 
         client.smartCull = false;
         moveCamera(client);
+        if (QuarryFeature.isRunning()) {
+            frozenPlayerState = null;
+            return;
+        }
+
         clearPlayerInput(client.player);
         if (frozenPlayerState == null) {
             captureFrozenStateIfGrounded(client.player);
@@ -180,8 +190,10 @@ public final class FreecamFeature extends Feature {
         cameraEntity.setOldPosAndRot();
 
         frozenPlayerState = null;
-        clearPlayerInput(player);
-        if (client.gameMode != null) {
+        if (!QuarryFeature.isRunning()) {
+            clearPlayerInput(player);
+        }
+        if (client.gameMode != null && !QuarryFeature.isRunning()) {
             client.gameMode.stopDestroyBlock();
         }
     }

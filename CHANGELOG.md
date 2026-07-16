@@ -2,6 +2,27 @@
 
 All notable changes to Null Tweaks will be documented in this file.
 
+## [1.3.0] - 2026-07-16
+
+### Added
+
+- Added Quarry automation with `/quarry` commands, keybinds, configurable overlay rendering, top-down task progress persistence, whitelist controls, safety pause options, and optional Baritone integration.
+- Added a join warning when Quarry cannot find a compatible Baritone install, with a Null-Baritone download button and persistent "Don't show again" control.
+- Added `/quarry clear` to stop Quarry and clear the saved selection and task progress.
+
+### Changed
+
+- Updated Quarry documentation to point at compatible Null-Baritone builds and clarify that current builds still require Baritone to be loaded separately until single-jar packaging is implemented.
+
+### Fixed
+
+- Fixed Quarry's selected-region overlay so choosing both positions no longer crashes the client during world rendering, including on the 26.2 line vertex format.
+- Fixed Quarry's Baritone detection and command dispatch so compatible Baritone forks with nonstandard Fabric mod ids, such as Null-Baritone, work even when they expose only the chat-command integration.
+- Fixed Quarry block breaking so it continues one break action per target instead of restarting the same block every tick.
+- Changed Quarry target selection to automatically skip vegetation-like blocks, including leaves, flowers, crops, vines, bamboo, and replaceable plants.
+- Changed Quarry traversal to snake across rows and layers continuously, dropping at the layer end instead of returning to the first corner before moving down.
+- Isolated client tick, HUD render, and world-render feature failures so an exception disables the failing feature for the session instead of crashing the game.
+
 ## [1.2.1] - 2026-07-13
 
 ### Fixed

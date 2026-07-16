@@ -58,22 +58,34 @@ public final class FeatureManager {
         hooksRegistered = true;
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             for (Feature feature : features.values()) {
-                if (feature.isEnabled() && feature.listensForClientTicks()) {
-                    feature.onClientTick(client);
+                if (feature.isActiveForHooks() && feature.listensForClientTicks()) {
+                    try {
+                        feature.onClientTick(client);
+                    } catch (RuntimeException exception) {
+                        disableForSession(feature, "client tick", exception);
+                    }
                 }
             }
         });
         HudElementRegistry.addLast(Identifier.fromNamespaceAndPath(NullTweaksClient.MOD_ID, "features"), (guiGraphics, tickCounter) -> {
             for (Feature feature : features.values()) {
-                if (feature.isEnabled() && feature.listensForHudRender()) {
-                    feature.onHudRender(guiGraphics, tickCounter);
+                if (feature.isActiveForHooks() && feature.listensForHudRender()) {
+                    try {
+                        feature.onHudRender(guiGraphics, tickCounter);
+                    } catch (RuntimeException exception) {
+                        disableForSession(feature, "HUD render", exception);
+                    }
                 }
             }
         });
         LevelRenderEvents.END_MAIN.register(context -> {
             for (Feature feature : features.values()) {
-                if (feature.isEnabled() && feature.listensForWorldRender()) {
-                    feature.onWorldRender(context);
+                if (feature.isActiveForHooks() && feature.listensForWorldRender()) {
+                    try {
+                        feature.onWorldRender(context);
+                    } catch (RuntimeException exception) {
+                        disableForSession(feature, "world render", exception);
+                    }
                 }
             }
         });
@@ -108,5 +120,10 @@ public final class FeatureManager {
         if (config == null) {
             throw new IllegalStateException("FeatureManager has not been initialized");
         }
+    }
+
+    private static void disableForSession(Feature feature, String hook, RuntimeException exception) {
+        feature.disableForSession();
+        NullTweaksClient.LOGGER.error("Disabling feature {} for this session after failure in {}", feature.id(), hook, exception);
     }
 }

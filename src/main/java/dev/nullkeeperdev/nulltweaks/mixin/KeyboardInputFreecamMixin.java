@@ -12,7 +12,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class KeyboardInputFreecamMixin {
     @Inject(method = "tick", at = @At("RETURN"))
     private void nulltweaks$clearFreecamMovement(CallbackInfo ci) {
-        if (FreecamFeature.isActive()) {
+        if (FreecamFeature.shouldSuppressPlayerInput()) {
             ((FreecamClientInputAccess) this).nulltweaks$clearFreecamMovement();
         }
     }

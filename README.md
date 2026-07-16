@@ -27,6 +27,7 @@ gameplay.
 - No Fishing Bobber to hide only your local hook sprite while keeping the line.
 - No Fog with separate toggles for lava, water, powder snow, effects, and world fog.
 - Autoclicker for fixed-interval left or right clicking with a visible active indicator.
+- Quarry automation for selected boxed regions, with `/quarry clear` selection reset, a wireframe selection overlay, layer-continuous serpentine traversal, automatic vegetation skipping, and optional Baritone integration for pathing.
 
 ## Gallery
 
@@ -56,10 +57,18 @@ gameplay.
 
 ## Requirements
 
-- Fabric Loader
-- Fabric API
-- YetAnotherConfigLib
-- Mod Menu
+- Required: [Fabric Loader](https://fabricmc.net/use/installer/)
+- Required: [Fabric API](https://modrinth.com/mod/fabric-api)
+- Required: [YetAnotherConfigLib](https://modrinth.com/mod/yacl)
+- Required: [Mod Menu](https://modrinth.com/mod/modmenu)
+- Optional for Quarry: Quarry currently uses Baritone for pathing and movement.
+  For local testing, install a compatible Fabric Baritone jar, or a fork such
+  as [Null-Baritone](https://github.com/NullKeeper-dev/Null-Baritone), beside
+  Null Tweaks. If no compatible Baritone is loaded, Null Tweaks shows a join
+  warning with a Null-Baritone download link and a persistent "Don't show
+  again" option. A single-jar release would require bundling or replacing the
+  Baritone integration; until then, Quarry will not start unless a compatible
+  Baritone API or command-capable Baritone fork is loaded.
 
 See [DEPENDENCY_MODS.md](DEPENDENCY_MODS.md) for the exact dependency versions
 used by each supported Minecraft release.

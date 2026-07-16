@@ -14,6 +14,7 @@ public abstract class Feature {
     private final String displayName;
     private final boolean defaultEnabled;
     private boolean enabled;
+    private boolean disabledForSession;
 
     protected Feature(String id, String displayName) {
         this(id, displayName, false);
@@ -40,6 +41,19 @@ public abstract class Feature {
 
     public final boolean isEnabled() {
         return enabled;
+    }
+
+    final boolean isActiveForHooks() {
+        return enabled && !disabledForSession;
+    }
+
+    final void disableForSession() {
+        if (disabledForSession) {
+            return;
+        }
+
+        disabledForSession = true;
+        onDisable();
     }
 
     public void onEnable() {
@@ -79,6 +93,7 @@ public abstract class Feature {
 
     final void loadFromConfig(JsonObject config) {
         enabled = dev.nullkeeperdev.nulltweaks.config.NullTweaksConfig.getBoolean(config, "enabled", defaultEnabled);
+        disabledForSession = false;
         loadSettings(config);
     }
 
@@ -101,6 +116,7 @@ public abstract class Feature {
         }
 
         this.enabled = enabled;
+        disabledForSession = false;
         if (enabled) {
             onEnable();
         } else {

@@ -4,5 +4,8 @@
   "key.nulltweaks.config.open": "Open Null Tweaks Settings",
   "key.nulltweaks.outerlayerplus.toggle_overlay": "Toggle OuterLayer+ Overlay",
   "key.nulltweaks.freecam.toggle": "Toggle Freecam",
-  "key.nulltweaks.autoclicker.toggle": "Toggle Autoclicker"
+  "key.nulltweaks.autoclicker.toggle": "Toggle Autoclicker",
+  "key.nulltweaks.quarry.start_resume": "Start/Resume Quarry",
+  "key.nulltweaks.quarry.pause": "Pause Quarry",
+  "key.nulltweaks.quarry.stop": "Stop Quarry"
 }
