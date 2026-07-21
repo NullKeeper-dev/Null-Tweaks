@@ -6,6 +6,7 @@ runs/
 config/nulltweaks/librarian_cache/
 
 versions/*/build/
+versions/*/bin/
 versions/*/run/
 
 .idea/

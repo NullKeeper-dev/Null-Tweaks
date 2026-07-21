@@ -5,6 +5,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.suggestion.SuggestionProvider;
@@ -23,7 +24,9 @@ import dev.nullkeeperdev.nulltweaks.NullTweaksClient;
 import dev.nullkeeperdev.nulltweaks.config.NullTweaksConfig;
 import dev.nullkeeperdev.nulltweaks.feature.Feature;
 import dev.nullkeeperdev.nulltweaks.feature.FeatureManager;
+import dev.nullkeeperdev.nulltweaks.feature.speednuker.SpeedNukerFeature;
 import dev.nullkeeperdev.nulltweaks.input.NullTweaksKeyMappings;
+import dev.nullkeeperdev.nulltweaks.util.ClientScreenState;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommands;
 import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
@@ -38,6 +41,7 @@ import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.rendertype.RenderType;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
+import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -54,24 +58,35 @@ import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.phys.shapes.CollisionContext;
+import net.minecraft.world.phys.shapes.VoxelShape;
 
 import java.awt.Color;
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
 public final class QuarryFeature extends Feature {
     private static final int DEFAULT_LARGE_TASK_THRESHOLD = 50_000;
     private static final int DEFAULT_DURABILITY_THRESHOLD_PERCENT = 10;
-    private static final double REACH_DISTANCE = 4.5D;
-    private static final int BARITONE_COMMAND_COOLDOWN_TICKS = 5;
+    private static final int MIN_SPHERE_RADIUS = 1;
+    private static final int MAX_SPHERE_RADIUS = 64;
+    private static final double REACH_DISTANCE = 3.0D;
+    private static final double NAVIGATION_PROGRESS_EPSILON_SQR = 0.25D;
+    private static final int NAVIGATION_CANDIDATE_RADIUS = 4;
+    private static final int NAVIGATION_STUCK_TICKS = 160;
     private static final float OVERLAY_LINE_WIDTH = 1.0F;
+    private static final int SPHERE_OVERLAY_SEGMENTS = 96;
     private static final Color DEFAULT_OVERLAY_COLOR = new Color(0x26C6DA);
     private static final RenderType OVERLAY_RENDER_TYPE = RenderTypes.lines();
     private static final KeyMapping START_RESUME_KEY = KeyMappingHelper.registerKeyMapping(new KeyMapping(
@@ -96,25 +111,34 @@ public final class QuarryFeature extends Feature {
 
     private BlockPos pos1;
     private BlockPos pos2;
+    private SelectionShape selectionShape = SelectionShape.BOX;
+    private BlockPos sphereCenter;
+    private int sphereRadius = MIN_SPHERE_RADIUS;
     private TaskState taskState = TaskState.STOPPED;
     private int cursorX;
     private int cursorY;
     private int cursorZ;
     private BlockPos currentTarget;
     private BlockPos breakingTarget;
+    private BlockPos navigationTarget;
+    private double bestNavigationDistanceSqr = Double.MAX_VALUE;
+    private int navigationNoProgressTicks;
     private Color overlayColor = DEFAULT_OVERLAY_COLOR;
     private boolean durabilityGuardEnabled = true;
     private int durabilityThresholdPercent = DEFAULT_DURABILITY_THRESHOLD_PERCENT;
-    private boolean playerProximityAlertEnabled = true;
+    private PlayerProximityAction playerProximityAction = PlayerProximityAction.PAUSE;
     private String alertSoundId = defaultAlertSoundId();
     private InventoryFullMode inventoryFullMode = InventoryFullMode.PAUSE;
+    private BlockListMode blockListMode = BlockListMode.BLACKLIST;
+    private boolean baritoneChatLoggingEnabled;
     private int largeTaskThreshold = DEFAULT_LARGE_TASK_THRESHOLD;
-    private final Set<Identifier> whitelist = new HashSet<>();
-    private int baritoneCooldownTicks;
+    private final Set<Identifier> blockList = new HashSet<>();
+    private final Set<BlockPos> skippedTargets = new HashSet<>();
     private boolean missingBaritoneNotified;
     private boolean showMissingBaritoneWarning = true;
     private int pendingMissingBaritoneWarningTicks;
     private boolean runtimeDisabled;
+    private boolean pausedForScreen;
 
     public QuarryFeature() {
         super("quarry", "Quarry");
@@ -124,6 +148,59 @@ public final class QuarryFeature extends Feature {
     public static boolean isRunning() {
         QuarryFeature feature = instance;
         return feature != null && feature.isEnabled() && !feature.runtimeDisabled && feature.taskState == TaskState.RUNNING;
+    }
+
+    public static boolean isEnabledForSpeedNuker() {
+        QuarryFeature feature = instance;
+        return feature != null && feature.isEnabled() && !feature.runtimeDisabled;
+    }
+
+    public static boolean allowsSpeedNukerTarget(ClientLevel level, BlockPos pos, BlockState state) {
+        QuarryFeature feature = instance;
+        if (feature == null || !isEnabledForSpeedNuker() || feature.isSkippedByBlockList(state)) {
+            return false;
+        }
+
+        if (!isRunning()) {
+            return true;
+        }
+
+        Bounds bounds = feature.bounds();
+        return bounds != null && !feature.isUnavailableTarget(level, bounds, pos);
+    }
+
+    public static boolean shouldSuppressBaritoneMessage(Component message) {
+        QuarryFeature feature = instance;
+        return feature != null && !feature.baritoneChatLoggingEnabled && isBaritoneMessage(message);
+    }
+
+    public static boolean shouldPreventBlockBreaking(BlockPos pos) {
+        QuarryFeature feature = instance;
+        Minecraft client = Minecraft.getInstance();
+        if (feature == null || !isRunning() || client.level == null || client.player == null) {
+            return false;
+        }
+
+        try {
+            BlockState state = client.level.getBlockState(pos);
+            if (state.isAir()) {
+                return false;
+            }
+
+            BlockBreakParameters parameters = blockBreakParameters(client.level, client.player.getEyePosition(), pos);
+            return feature.isSkippedByBlockList(state)
+                    || parameters == null
+                    || parameters.distanceSqr() > REACH_DISTANCE * REACH_DISTANCE;
+        } catch (RuntimeException exception) {
+            feature.runtimeDisabled = true;
+            feature.taskState = TaskState.PAUSED;
+            feature.pauseMovement();
+            NullTweaksClient.LOGGER.error(
+                    "Disabling feature {} for this session after failure while enforcing block-breaking rules",
+                    feature.id(),
+                    exception);
+            return false;
+        }
     }
 
     public static void registerCommands() {
@@ -163,6 +240,7 @@ public final class QuarryFeature extends Feature {
     @Override
     public void onDisable() {
         pauseMovement();
+        pausedForScreen = false;
         runtimeDisabled = false;
     }
 
@@ -200,39 +278,25 @@ public final class QuarryFeature extends Feature {
             return;
         }
 
-        if (pos1 == null || pos2 == null) {
-            return;
-        }
-
         Bounds bounds = bounds();
         if (bounds == null) {
             return;
         }
 
         Vec3 camera = context.levelState().cameraRenderState.pos;
-        double minX = bounds.minX() - camera.x;
-        double minY = bounds.minY() - camera.y;
-        double minZ = bounds.minZ() - camera.z;
-        double maxX = bounds.maxX() + 1.0D - camera.x;
-        double maxY = bounds.maxY() + 1.0D - camera.y;
-        double maxZ = bounds.maxZ() + 1.0D - camera.z;
         int color = overlayColor.getRGB();
         int alpha = 255;
+        SelectionShape shape = selectionShape;
+        BlockPos center = sphereCenter;
+        int radius = sphereRadius;
 
         context.submitNodeCollector().submitCustomGeometry(context.poseStack(), OVERLAY_RENDER_TYPE, (pose, vertices) -> {
             try {
-                line(vertices, pose, minX, minY, minZ, maxX, minY, minZ, color, alpha);
-                line(vertices, pose, maxX, minY, minZ, maxX, minY, maxZ, color, alpha);
-                line(vertices, pose, maxX, minY, maxZ, minX, minY, maxZ, color, alpha);
-                line(vertices, pose, minX, minY, maxZ, minX, minY, minZ, color, alpha);
-                line(vertices, pose, minX, maxY, minZ, maxX, maxY, minZ, color, alpha);
-                line(vertices, pose, maxX, maxY, minZ, maxX, maxY, maxZ, color, alpha);
-                line(vertices, pose, maxX, maxY, maxZ, minX, maxY, maxZ, color, alpha);
-                line(vertices, pose, minX, maxY, maxZ, minX, maxY, minZ, color, alpha);
-                line(vertices, pose, minX, minY, minZ, minX, maxY, minZ, color, alpha);
-                line(vertices, pose, maxX, minY, minZ, maxX, maxY, minZ, color, alpha);
-                line(vertices, pose, maxX, minY, maxZ, maxX, maxY, maxZ, color, alpha);
-                line(vertices, pose, minX, minY, maxZ, minX, maxY, maxZ, color, alpha);
+                if (shape == SelectionShape.SPHERE && center != null) {
+                    renderSphereOverlay(vertices, pose, camera, center, radius, color, alpha);
+                } else {
+                    renderBoxOverlay(vertices, pose, camera, bounds, color, alpha);
+                }
             } catch (RuntimeException exception) {
                 runtimeDisabled = true;
                 taskState = TaskState.PAUSED;
@@ -247,11 +311,13 @@ public final class QuarryFeature extends Feature {
         builder.option(overlayColorOption())
                 .option(durabilityGuardOption())
                 .option(durabilityThresholdOption())
-                .option(playerProximityAlertOption())
+                .option(playerProximityActionOption())
                 .option(alertSoundOption())
                 .option(inventoryModeOption())
+                .option(blockListModeOption())
+                .option(baritoneChatLoggingOption())
                 .option(largeTaskThresholdOption())
-                .option(whitelistOption())
+                .option(blockListOption())
                 .option(missingBaritoneWarningOption())
                 .option(keybindButton("Start/resume keybind", START_RESUME_KEY))
                 .option(keybindButton("Pause keybind", PAUSE_KEY))
@@ -262,6 +328,12 @@ public final class QuarryFeature extends Feature {
     protected void loadSettings(JsonObject config) {
         pos1 = readPos(config.getAsJsonObject("pos1"));
         pos2 = readPos(config.getAsJsonObject("pos2"));
+        selectionShape = SelectionShape.fromConfig(NullTweaksConfig.getString(config, "selectionShape", SelectionShape.BOX.configValue()));
+        sphereCenter = readPos(config.getAsJsonObject("sphereCenter"));
+        sphereRadius = clampInt(NullTweaksConfig.getInt(config, "sphereRadius", MIN_SPHERE_RADIUS), MIN_SPHERE_RADIUS, MAX_SPHERE_RADIUS);
+        if (selectionShape == SelectionShape.SPHERE && sphereCenter == null) {
+            selectionShape = SelectionShape.BOX;
+        }
         taskState = TaskState.fromConfig(NullTweaksConfig.getString(config, "taskState", TaskState.STOPPED.configValue()));
         if (taskState == TaskState.RUNNING) {
             taskState = TaskState.PAUSED;
@@ -273,19 +345,25 @@ public final class QuarryFeature extends Feature {
         overlayColor = parseColor(NullTweaksConfig.getString(config, "overlayColor", colorString(DEFAULT_OVERLAY_COLOR)), DEFAULT_OVERLAY_COLOR);
         durabilityGuardEnabled = NullTweaksConfig.getBoolean(config, "durabilityGuardEnabled", true);
         durabilityThresholdPercent = clampInt(NullTweaksConfig.getInt(config, "durabilityThresholdPercent", DEFAULT_DURABILITY_THRESHOLD_PERCENT), 1, 100);
-        playerProximityAlertEnabled = NullTweaksConfig.getBoolean(config, "playerProximityAlertEnabled", true);
+        playerProximityAction = PlayerProximityAction.fromConfig(NullTweaksConfig.getString(config, "playerProximityAction",
+                NullTweaksConfig.getBoolean(config, "playerProximityAlertEnabled", true) ? PlayerProximityAction.PAUSE.configValue() : PlayerProximityAction.IGNORE.configValue()));
         alertSoundId = NullTweaksConfig.getString(config, "alertSoundId", alertSoundId);
         inventoryFullMode = InventoryFullMode.fromConfig(NullTweaksConfig.getString(config, "inventoryFullMode", InventoryFullMode.PAUSE.configValue()));
+        blockListMode = BlockListMode.fromConfig(NullTweaksConfig.getString(config, "blockListMode", BlockListMode.BLACKLIST.configValue()));
+        baritoneChatLoggingEnabled = NullTweaksConfig.getBoolean(config, "baritoneChatLoggingEnabled", false);
         largeTaskThreshold = Math.max(1, NullTweaksConfig.getInt(config, "largeTaskThreshold", DEFAULT_LARGE_TASK_THRESHOLD));
         showMissingBaritoneWarning = NullTweaksConfig.getBoolean(config, "showMissingBaritoneWarning", true);
-        whitelist.clear();
-        JsonArray whitelistJson = config.getAsJsonArray("whitelist");
-        if (whitelistJson != null) {
-            for (JsonElement element : whitelistJson) {
+        blockList.clear();
+        JsonArray blockListJson = config.getAsJsonArray("blockList");
+        if (blockListJson == null) {
+            blockListJson = config.getAsJsonArray("whitelist");
+        }
+        if (blockListJson != null) {
+            for (JsonElement element : blockListJson) {
                 if (element.isJsonPrimitive()) {
                     Identifier id = Identifier.tryParse(element.getAsString());
                     if (id != null) {
-                        whitelist.add(id);
+                        blockList.add(id);
                     }
                 }
             }
@@ -296,6 +374,9 @@ public final class QuarryFeature extends Feature {
     protected void saveSettings(JsonObject config) {
         writePos(config, "pos1", pos1);
         writePos(config, "pos2", pos2);
+        config.addProperty("selectionShape", selectionShape.configValue());
+        writePos(config, "sphereCenter", sphereCenter);
+        config.addProperty("sphereRadius", sphereRadius);
         config.addProperty("taskState", taskState.configValue());
         config.addProperty("cursorX", cursorX);
         config.addProperty("cursorY", cursorY);
@@ -304,46 +385,78 @@ public final class QuarryFeature extends Feature {
         config.addProperty("overlayColor", colorString(overlayColor));
         config.addProperty("durabilityGuardEnabled", durabilityGuardEnabled);
         config.addProperty("durabilityThresholdPercent", durabilityThresholdPercent);
-        config.addProperty("playerProximityAlertEnabled", playerProximityAlertEnabled);
+        config.addProperty("playerProximityAction", playerProximityAction.configValue());
         config.addProperty("alertSoundId", alertSoundId);
         config.addProperty("inventoryFullMode", inventoryFullMode.configValue());
+        config.remove("collectDropsEnabled");
+        config.remove("speedNukerEnabled");
+        config.remove("speedNukerMaxBlocksPerTick");
+        config.addProperty("blockListMode", blockListMode.configValue());
+        config.addProperty("baritoneChatLoggingEnabled", baritoneChatLoggingEnabled);
         config.addProperty("largeTaskThreshold", largeTaskThreshold);
         config.addProperty("showMissingBaritoneWarning", showMissingBaritoneWarning);
-        JsonArray whitelistJson = new JsonArray();
-        whitelist.stream().map(Identifier::toString).sorted().forEach(whitelistJson::add);
-        config.add("whitelist", whitelistJson);
+        JsonArray blockListJson = new JsonArray();
+        blockList.stream().map(Identifier::toString).sorted().forEach(blockListJson::add);
+        config.add("blockList", blockListJson);
     }
 
     private static void registerCommandTree(CommandDispatcher<FabricClientCommandSource> dispatcher) {
         dispatcher.register(ClientCommands.literal("quarry")
+                .then(ClientCommands.argument("radius", IntegerArgumentType.integer(MIN_SPHERE_RADIUS, MAX_SPHERE_RADIUS))
+                        .executes(context -> command(context, feature -> feature.captureSphere(context))))
                 .then(ClientCommands.literal("pos1").executes(context -> command(context, feature -> feature.capturePos(context, true))))
                 .then(ClientCommands.literal("pos2").executes(context -> command(context, feature -> feature.capturePos(context, false))))
                 .then(ClientCommands.literal("start").executes(context -> command(context, feature -> feature.start(context.getSource()))))
                 .then(ClientCommands.literal("pause").executes(context -> command(context, feature -> feature.pause(context.getSource(), "Quarry paused."))))
                 .then(ClientCommands.literal("resume").executes(context -> command(context, feature -> feature.resume(context.getSource()))))
                 .then(ClientCommands.literal("stop").executes(context -> command(context, feature -> feature.stop(context.getSource()))))
-                .then(ClientCommands.literal("clear").executes(context -> command(context, feature -> feature.clear(context.getSource()))))
+                .then(ClientCommands.literal("clear").executes(context -> command(context, feature -> feature.clear(context.getSource()), true)))
+                .then(ClientCommands.literal("mode")
+                        .then(ClientCommands.literal("blacklist")
+                                .executes(context -> command(context, feature -> feature.setBlockListMode(context.getSource(), BlockListMode.BLACKLIST))))
+                        .then(ClientCommands.literal("whitelist")
+                                .executes(context -> command(context, feature -> feature.setBlockListMode(context.getSource(), BlockListMode.WHITELIST)))))
+                .then(ClientCommands.literal("chatlogs")
+                        .then(ClientCommands.literal("on")
+                                .executes(context -> command(context, feature -> feature.setBaritoneChatLogging(context.getSource(), true))))
+                        .then(ClientCommands.literal("off")
+                                .executes(context -> command(context, feature -> feature.setBaritoneChatLogging(context.getSource(), false)))))
+                .then(ClientCommands.literal("blocklist")
+                        .then(ClientCommands.literal("add")
+                                .then(ClientCommands.argument("block", StringArgumentType.word())
+                                        .suggests(BLOCK_SUGGESTIONS)
+                                        .executes(context -> command(context, feature -> feature.addBlockList(context)))))
+                        .then(ClientCommands.literal("remove")
+                                .then(ClientCommands.argument("block", StringArgumentType.word())
+                                        .suggests(BLOCK_SUGGESTIONS)
+                                        .executes(context -> command(context, feature -> feature.removeBlockList(context)))))
+                        .then(ClientCommands.literal("list")
+                                .executes(context -> command(context, feature -> feature.listBlockList(context.getSource())))))
                 .then(ClientCommands.literal("whitelist")
                         .then(ClientCommands.literal("add")
                                 .then(ClientCommands.argument("block", StringArgumentType.word())
                                         .suggests(BLOCK_SUGGESTIONS)
-                                        .executes(context -> command(context, feature -> feature.addWhitelist(context)))))
+                                        .executes(context -> command(context, feature -> feature.addBlockList(context)))))
                         .then(ClientCommands.literal("remove")
                                 .then(ClientCommands.argument("block", StringArgumentType.word())
                                         .suggests(BLOCK_SUGGESTIONS)
-                                        .executes(context -> command(context, feature -> feature.removeWhitelist(context)))))
+                                        .executes(context -> command(context, feature -> feature.removeBlockList(context)))))
                         .then(ClientCommands.literal("list")
-                                .executes(context -> command(context, feature -> feature.listWhitelist(context.getSource()))))));
+                                .executes(context -> command(context, feature -> feature.listBlockList(context.getSource()))))));
     }
 
     private static int command(CommandContext<FabricClientCommandSource> context, QuarryCommand command) {
+        return command(context, command, false);
+    }
+
+    private static int command(CommandContext<FabricClientCommandSource> context, QuarryCommand command, boolean allowDisabled) {
         QuarryFeature feature = instance;
         if (feature == null) {
             context.getSource().sendError(Component.literal("Null Tweaks is not initialized yet."));
             return 0;
         }
 
-        if (!feature.isEnabled()) {
+        if (!allowDisabled && !feature.isEnabled()) {
             context.getSource().sendError(Component.literal("Quarry is disabled in Null Tweaks settings."));
             return 0;
         }
@@ -353,6 +466,9 @@ public final class QuarryFeature extends Feature {
 
     private int capturePos(CommandContext<FabricClientCommandSource> context, boolean first) {
         BlockPos captured = context.getSource().getPlayer().blockPosition();
+        selectionShape = SelectionShape.BOX;
+        sphereCenter = null;
+        sphereRadius = MIN_SPHERE_RADIUS;
         if (first) {
             pos1 = captured;
         } else {
@@ -364,6 +480,29 @@ public final class QuarryFeature extends Feature {
         return 1;
     }
 
+    private int captureSphere(CommandContext<FabricClientCommandSource> context) {
+        int radius = IntegerArgumentType.getInteger(context, "radius");
+        BlockPos center = context.getSource().getPlayer().blockPosition();
+        boolean taskWasActive = taskState != TaskState.STOPPED;
+        selectionShape = SelectionShape.SPHERE;
+        sphereCenter = center;
+        sphereRadius = radius;
+        pos1 = new BlockPos(center.getX() - radius, center.getY() - radius, center.getZ() - radius);
+        pos2 = new BlockPos(center.getX() + radius, center.getY() + radius, center.getZ() + radius);
+        resetTaskForNewSelection();
+        if (taskWasActive) {
+            pauseMovement();
+        }
+        FeatureManager.INSTANCE.saveFeature(this);
+
+        Bounds bounds = bounds();
+        long blockCount = bounds == null ? 0L : selectionBlockCount(bounds);
+        context.getSource().sendFeedback(Component.literal("Quarry sphere: center " + formatPos(center)
+                + ", radius " + radius + " (" + blockCount + " blocks). Use /quarry start to begin."));
+        warnIfLarge(context.getSource(), blockCount);
+        return 1;
+    }
+
     private int start(FabricClientCommandSource source) {
         if (!ensureBaritone(source)) {
             return 0;
@@ -371,15 +510,12 @@ public final class QuarryFeature extends Feature {
 
         Bounds bounds = bounds();
         if (bounds == null) {
-            source.sendError(Component.literal("Set both Quarry corners first with /quarry pos1 and /quarry pos2."));
+            source.sendError(Component.literal(missingSelectionMessage()));
             return 0;
         }
 
-        cursorX = bounds.minX();
-        cursorY = bounds.maxY();
-        cursorZ = bounds.minZ();
-        currentTarget = null;
-        breakingTarget = null;
+        applyBaritoneChatLogging();
+        initializeTask(Minecraft.getInstance().level, source.getPlayer(), bounds);
         taskState = TaskState.RUNNING;
         missingBaritoneNotified = false;
         FeatureManager.INSTANCE.saveFeature(this);
@@ -394,7 +530,7 @@ public final class QuarryFeature extends Feature {
         }
 
         if (bounds() == null) {
-            source.sendError(Component.literal("Set both Quarry corners first with /quarry pos1 and /quarry pos2."));
+            source.sendError(Component.literal(missingSelectionMessage()));
             return 0;
         }
 
@@ -403,8 +539,9 @@ public final class QuarryFeature extends Feature {
         }
 
         taskState = TaskState.RUNNING;
-        breakingTarget = null;
+        stopQuarryBreaking();
         missingBaritoneNotified = false;
+        applyBaritoneChatLogging();
         FeatureManager.INSTANCE.saveFeature(this);
         source.sendFeedback(Component.literal("Quarry resumed."));
         return 1;
@@ -423,7 +560,10 @@ public final class QuarryFeature extends Feature {
     private int stop(FabricClientCommandSource source) {
         taskState = TaskState.STOPPED;
         currentTarget = null;
-        breakingTarget = null;
+        stopQuarryBreaking();
+        navigationTarget = null;
+        skippedTargets.clear();
+        resetNavigationProgress();
         pauseMovement();
         FeatureManager.INSTANCE.saveFeature(this);
         source.sendFeedback(Component.literal("Quarry stopped."));
@@ -433,49 +573,79 @@ public final class QuarryFeature extends Feature {
     private int clear(FabricClientCommandSource source) {
         pos1 = null;
         pos2 = null;
+        selectionShape = SelectionShape.BOX;
+        sphereCenter = null;
+        sphereRadius = MIN_SPHERE_RADIUS;
         taskState = TaskState.STOPPED;
         cursorX = 0;
         cursorY = 0;
         cursorZ = 0;
         currentTarget = null;
-        breakingTarget = null;
+        stopQuarryBreaking();
+        navigationTarget = null;
+        skippedTargets.clear();
+        resetNavigationProgress();
         pauseMovement();
         FeatureManager.INSTANCE.saveFeature(this);
         source.sendFeedback(Component.literal("Quarry selection cleared."));
         return 1;
     }
 
-    private int addWhitelist(CommandContext<FabricClientCommandSource> context) {
+    private int setBlockListMode(FabricClientCommandSource source, BlockListMode mode) {
+        blockListMode = mode;
+        currentTarget = null;
+        stopQuarryBreaking();
+        cancelActivePath();
+        FeatureManager.INSTANCE.saveFeature(this);
+        source.sendFeedback(Component.literal("Quarry block list mode set to " + mode.displayName() + "."));
+        return 1;
+    }
+
+    private int setBaritoneChatLogging(FabricClientCommandSource source, boolean enabled) {
+        baritoneChatLoggingEnabled = enabled;
+        applyBaritoneChatLogging();
+        FeatureManager.INSTANCE.saveFeature(this);
+        source.sendFeedback(Component.literal("Quarry Baritone chat logs " + (enabled ? "enabled." : "disabled.")));
+        return 1;
+    }
+
+    private int addBlockList(CommandContext<FabricClientCommandSource> context) {
         Identifier id = resolveBlockId(StringArgumentType.getString(context, "block"));
         if (id == null) {
             context.getSource().sendError(Component.literal("Unknown block."));
             return 0;
         }
-        whitelist.add(id);
+        blockList.add(id);
+        currentTarget = null;
+        stopQuarryBreaking();
+        cancelActivePath();
         FeatureManager.INSTANCE.saveFeature(this);
-        context.getSource().sendFeedback(Component.literal("Added " + id + " to the Quarry whitelist."));
+        context.getSource().sendFeedback(Component.literal("Added " + id + " to the Quarry block list."));
         return 1;
     }
 
-    private int removeWhitelist(CommandContext<FabricClientCommandSource> context) {
+    private int removeBlockList(CommandContext<FabricClientCommandSource> context) {
         Identifier id = resolveBlockId(StringArgumentType.getString(context, "block"));
-        if (id == null || !whitelist.remove(id)) {
-            context.getSource().sendError(Component.literal("That block is not in the Quarry whitelist."));
+        if (id == null || !blockList.remove(id)) {
+            context.getSource().sendError(Component.literal("That block is not in the Quarry block list."));
             return 0;
         }
+        currentTarget = null;
+        stopQuarryBreaking();
+        cancelActivePath();
         FeatureManager.INSTANCE.saveFeature(this);
-        context.getSource().sendFeedback(Component.literal("Removed " + id + " from the Quarry whitelist."));
+        context.getSource().sendFeedback(Component.literal("Removed " + id + " from the Quarry block list."));
         return 1;
     }
 
-    private int listWhitelist(FabricClientCommandSource source) {
-        if (whitelist.isEmpty()) {
-            source.sendFeedback(Component.literal("Quarry whitelist is empty."));
+    private int listBlockList(FabricClientCommandSource source) {
+        if (blockList.isEmpty()) {
+            source.sendFeedback(Component.literal("Quarry block list is empty. Mode: " + blockListMode.displayName() + "."));
             return 1;
         }
 
-        String blocks = whitelist.stream().map(Identifier::toString).sorted().reduce((left, right) -> left + ", " + right).orElse("");
-        source.sendFeedback(Component.literal("Quarry whitelist: " + blocks));
+        String blocks = blockList.stream().map(Identifier::toString).sorted().reduce((left, right) -> left + ", " + right).orElse("");
+        source.sendFeedback(Component.literal("Quarry block list (" + blockListMode.displayName() + "): " + blocks));
         return 1;
     }
 
@@ -498,8 +668,18 @@ public final class QuarryFeature extends Feature {
         }
 
         if (taskState != TaskState.RUNNING || client.level == null || client.player == null || client.gameMode == null) {
+            pausedForScreen = false;
             return;
         }
+
+        if (ClientScreenState.hasOpenScreen(client)) {
+            if (!pausedForScreen) {
+                pauseMovement();
+                pausedForScreen = true;
+            }
+            return;
+        }
+        pausedForScreen = false;
 
         if (!BaritoneBridge.isAvailable()) {
             taskState = TaskState.PAUSED;
@@ -512,7 +692,16 @@ public final class QuarryFeature extends Feature {
             return;
         }
 
-        if (playerProximityAlertEnabled && otherPlayerInRenderDistance(client)) {
+        double targetReachDistance = SpeedNukerFeature.quarryTargetReachDistance(REACH_DISTANCE);
+        if (!BaritoneBridge.applyQuarryControl(blockListMode, blockList, targetReachDistance)) {
+            taskState = TaskState.PAUSED;
+            pauseMovement();
+            FeatureManager.INSTANCE.saveFeature(this);
+            sendPlayerMessage(client, "Quarry paused: unable to apply absolute block-list rules to Baritone.");
+            return;
+        }
+
+        if (playerProximityAction == PlayerProximityAction.PAUSE && otherPlayerInRenderDistance(client)) {
             taskState = TaskState.PAUSED;
             pauseMovement();
             playAlert(client);
@@ -521,20 +710,26 @@ public final class QuarryFeature extends Feature {
             return;
         }
 
-        tickTask(client);
+        tickTask(client, targetReachDistance);
     }
 
-    private void tickTask(Minecraft client) {
+    private void tickTask(Minecraft client, double targetReachDistance) {
         Bounds bounds = bounds();
         if (bounds == null) {
             taskState = TaskState.STOPPED;
+            pauseMovement();
             FeatureManager.INSTANCE.saveFeature(this);
             sendPlayerMessage(client, "Quarry stopped: selection is incomplete.");
             return;
         }
 
-        if (currentTarget == null || isSkippable(client.level, currentTarget)) {
-            breakingTarget = null;
+        if (currentTarget != null && isUnavailableTarget(client.level, bounds, currentTarget)) {
+            stopQuarryBreaking();
+            currentTarget = null;
+            FeatureManager.INSTANCE.saveFeature(this);
+        }
+
+        if (currentTarget == null) {
             currentTarget = findNextTarget(client.level, bounds);
             FeatureManager.INSTANCE.saveFeature(this);
         }
@@ -551,9 +746,10 @@ public final class QuarryFeature extends Feature {
         Optional<Integer> toolSlot = findToolSlot(client.player, state);
         if (toolSlot.isEmpty()) {
             sendPlayerMessage(client, "Quarry skipped " + blockName(state) + ": no matching tool found.");
+            skippedTargets.add(currentTarget);
             advancePastCurrent(bounds);
             currentTarget = null;
-            breakingTarget = null;
+            stopQuarryBreaking();
             FeatureManager.INSTANCE.saveFeature(this);
             return;
         }
@@ -576,14 +772,22 @@ public final class QuarryFeature extends Feature {
             return;
         }
 
-        double distance = client.player.position().distanceTo(Vec3.atCenterOf(currentTarget));
-        if (distance > REACH_DISTANCE) {
-            breakingTarget = null;
-            sendPathCommand(currentTarget);
+        BlockBreakParameters parameters = blockBreakParameters(client.level, client.player.getEyePosition(), currentTarget);
+        if (parameters == null || parameters.distanceSqr() > targetReachDistance * targetReachDistance) {
+            stopQuarryBreaking();
+            if (!sendPathCommand(client, currentTarget, targetReachDistance)) {
+                skipCurrentTargetAfterPathingFailure(client, bounds, state);
+            }
             return;
         }
 
-        Direction direction = directionToward(client.player, currentTarget);
+        cancelActivePath();
+        if (SpeedNukerFeature.isHandlingQuarry()) {
+            stopQuarryBreaking();
+            return;
+        }
+
+        Direction direction = parameters.side();
         if (!currentTarget.equals(breakingTarget)) {
             client.gameMode.startDestroyBlock(currentTarget, direction);
             breakingTarget = currentTarget;
@@ -595,22 +799,14 @@ public final class QuarryFeature extends Feature {
         int x = clampInt(cursorX, bounds.minX(), bounds.maxX());
         int y = clampInt(cursorY, bounds.minY(), bounds.maxY());
         int z = clampInt(cursorZ, bounds.minZ(), bounds.maxZ());
+        long startIndex = traversalIndex(bounds, x, y, z);
+        long volume = bounds.volume();
 
-        for (int yy = y; yy >= bounds.minY(); yy--) {
-            boolean zForward = isForwardLayer(bounds, yy);
-            int startZ = yy == y ? z : layerStartZ(bounds, yy);
-            for (int zz = startZ; isWithinLayer(bounds, zz, zForward); zz += zForward ? 1 : -1) {
-                boolean forward = isForwardRow(bounds, yy, zz);
-                int startX = yy == y && zz == z ? x : rowStartX(bounds, yy, zz);
-                for (int xx = startX; isWithinRow(bounds, xx, forward); xx += forward ? 1 : -1) {
-                    BlockPos candidate = new BlockPos(xx, yy, zz);
-                    cursorX = xx;
-                    cursorY = yy;
-                    cursorZ = zz;
-                    if (!isSkippable(level, candidate)) {
-                        return candidate;
-                    }
-                }
+        for (long offset = 0; offset < volume; offset++) {
+            BlockPos candidate = positionAtTraversalIndex(bounds, (startIndex + offset) % volume);
+            setCursor(candidate);
+            if (!isUnavailableTarget(level, bounds, candidate)) {
+                return candidate;
             }
         }
 
@@ -618,42 +814,94 @@ public final class QuarryFeature extends Feature {
     }
 
     private void advancePastCurrent(Bounds bounds) {
-        boolean forward = isForwardRow(bounds, cursorY, cursorZ);
-        cursorX += forward ? 1 : -1;
-        if (!isWithinRow(bounds, cursorX, forward)) {
-            boolean zForward = isForwardLayer(bounds, cursorY);
-            cursorZ += zForward ? 1 : -1;
-            if (!isWithinLayer(bounds, cursorZ, zForward)) {
-                cursorY--;
-                if (cursorY < bounds.minY()) {
-                    return;
-                }
-                cursorZ = layerStartZ(bounds, cursorY);
-            }
-            cursorX = rowStartX(bounds, cursorY, cursorZ);
+        long volume = bounds.volume();
+        if (volume <= 0) {
+            return;
         }
+        int x = clampInt(cursorX, bounds.minX(), bounds.maxX());
+        int y = clampInt(cursorY, bounds.minY(), bounds.maxY());
+        int z = clampInt(cursorZ, bounds.minZ(), bounds.maxZ());
+        setCursor(positionAtTraversalIndex(bounds, (traversalIndex(bounds, x, y, z) + 1) % volume));
+    }
+
+    private void initializeTask(ClientLevel level, Player player, Bounds bounds) {
+        skippedTargets.clear();
+        navigationTarget = null;
+        resetNavigationProgress();
+        stopQuarryBreaking();
+        currentTarget = null;
+
+        BlockPos start = level == null || player == null ? null : findClosestTarget(level, bounds, player);
+        if (start == null) {
+            start = positionAtTraversalIndex(bounds, 0);
+        } else {
+            currentTarget = start;
+        }
+        setCursor(start);
+    }
+
+    private BlockPos findClosestTarget(ClientLevel level, Bounds bounds, Player player) {
+        Vec3 origin = player.getEyePosition();
+        BlockPos closest = null;
+        double closestDistance = Double.MAX_VALUE;
+        long volume = bounds.volume();
+
+        for (long index = 0; index < volume; index++) {
+            BlockPos candidate = positionAtTraversalIndex(bounds, index);
+            if (isUnavailableTarget(level, bounds, candidate)) {
+                continue;
+            }
+
+            double distance = distanceToCenterSqr(origin, candidate);
+            if (distance < closestDistance) {
+                closestDistance = distance;
+                closest = candidate;
+            }
+        }
+
+        return closest;
+    }
+
+    private static long traversalIndex(Bounds bounds, int x, int y, int z) {
+        long layer = layerIndex(bounds, y);
+        long row = rowIndex(bounds, y, z);
+        long column = isForwardRow(bounds, y, z) ? x - bounds.minX() : bounds.maxX() - x;
+        return layer * bounds.width() * bounds.depth() + row * bounds.width() + column;
+    }
+
+    private static BlockPos positionAtTraversalIndex(Bounds bounds, long index) {
+        long layerSize = (long) bounds.width() * bounds.depth();
+        int layer = (int) (index / layerSize);
+        long layerOffset = index % layerSize;
+        int row = (int) (layerOffset / bounds.width());
+        int column = (int) (layerOffset % bounds.width());
+        int y = bounds.maxY() - layer;
+        int z = (layer & 1) == 0 ? bounds.minZ() + row : bounds.maxZ() - row;
+        int x = isForwardRow(bounds, y, z) ? bounds.minX() + column : bounds.maxX() - column;
+        return new BlockPos(x, y, z);
+    }
+
+    private void setCursor(BlockPos pos) {
+        cursorX = pos.getX();
+        cursorY = pos.getY();
+        cursorZ = pos.getZ();
+    }
+
+    private static double distanceToCenterSqr(Vec3 origin, BlockPos pos) {
+        double dx = pos.getX() + 0.5D - origin.x;
+        double dy = pos.getY() + 0.5D - origin.y;
+        double dz = pos.getZ() + 0.5D - origin.z;
+        return dx * dx + dy * dy + dz * dz;
     }
 
     private static boolean isForwardLayer(Bounds bounds, int y) {
         return (layerIndex(bounds, y) & 1) == 0;
     }
 
-    private static int layerStartZ(Bounds bounds, int y) {
-        return isForwardLayer(bounds, y) ? bounds.minZ() : bounds.maxZ();
-    }
-
-    private static boolean isWithinLayer(Bounds bounds, int z, boolean forward) {
-        return forward ? z <= bounds.maxZ() : z >= bounds.minZ();
-    }
-
     private static boolean isForwardRow(Bounds bounds, int y, int z) {
         boolean layerStartsAtMinX = bounds.depth() % 2 == 0 || (layerIndex(bounds, y) & 1) == 0;
         boolean rowStartsAtMinX = (rowIndex(bounds, y, z) & 1) == 0 ? layerStartsAtMinX : !layerStartsAtMinX;
         return rowStartsAtMinX;
-    }
-
-    private static int rowStartX(Bounds bounds, int y, int z) {
-        return isForwardRow(bounds, y, z) ? bounds.minX() : bounds.maxX();
     }
 
     private static int layerIndex(Bounds bounds, int y) {
@@ -664,13 +912,77 @@ public final class QuarryFeature extends Feature {
         return isForwardLayer(bounds, y) ? z - bounds.minZ() : bounds.maxZ() - z;
     }
 
-    private static boolean isWithinRow(Bounds bounds, int x, boolean forward) {
-        return forward ? x <= bounds.maxX() : x >= bounds.minX();
-    }
-
     private boolean isSkippable(ClientLevel level, BlockPos pos) {
         BlockState state = level.getBlockState(pos);
-        return state.isAir() || state.liquid() || isIgnoredPlant(state) || whitelist.contains(blockId(state));
+        return state.isAir()
+                || state.liquid()
+                || state.getDestroySpeed(level, pos) < 0.0F
+                || isSkippedByBlockList(state)
+                || blockListMode == BlockListMode.BLACKLIST && isIgnoredPlant(state);
+    }
+
+    private boolean isUnavailableTarget(ClientLevel level, Bounds bounds, BlockPos pos) {
+        return !bounds.contains(pos)
+                || !isInsideSelection(pos)
+                || skippedTargets.contains(pos)
+                || SpeedNukerFeature.shouldSkipQuarryTarget(pos)
+                || isSkippable(level, pos);
+    }
+
+    private boolean isInsideSelection(BlockPos pos) {
+        if (selectionShape != SelectionShape.SPHERE) {
+            return true;
+        }
+        if (sphereCenter == null) {
+            return false;
+        }
+
+        long dx = pos.getX() - sphereCenter.getX();
+        long dy = pos.getY() - sphereCenter.getY();
+        long dz = pos.getZ() - sphereCenter.getZ();
+        long radiusSqr = (long) sphereRadius * sphereRadius;
+        return dx * dx + dy * dy + dz * dz <= radiusSqr;
+    }
+
+    private boolean isSkippedByBlockList(BlockState state) {
+        boolean listed = blockList.contains(blockId(state));
+        return blockListMode == BlockListMode.BLACKLIST ? listed : !listed;
+    }
+
+    private static BlockBreakParameters blockBreakParameters(ClientLevel level, Vec3 eyes, BlockPos pos) {
+        BlockState state = level.getBlockState(pos);
+        VoxelShape shape = state.getShape(level, pos);
+        AABB box = shape.isEmpty() ? new AABB(0.0D, 0.0D, 0.0D, 1.0D, 1.0D, 1.0D) : shape.bounds();
+        Vec3 center = Vec3.atLowerCornerOf(pos).add(box.getCenter());
+        Vec3 halfSize = new Vec3(
+                (box.maxX - box.minX) * 0.5D,
+                (box.maxY - box.minY) * 0.5D,
+                (box.maxZ - box.minZ) * 0.5D);
+        double centerDistanceSqr = eyes.distanceToSqr(center);
+
+        Direction bestSide = null;
+        Vec3 bestHit = null;
+        double bestDistanceSqr = Double.MAX_VALUE;
+        for (Direction side : Direction.values()) {
+            Vec3 direction = Vec3.atLowerCornerOf(side.getUnitVec3i());
+            Vec3 hit = center.add(
+                    halfSize.x * direction.x,
+                    halfSize.y * direction.y,
+                    halfSize.z * direction.z);
+            double distanceSqr = eyes.distanceToSqr(hit);
+            if (distanceSqr < centerDistanceSqr && distanceSqr < bestDistanceSqr) {
+                bestSide = side;
+                bestHit = hit;
+                bestDistanceSqr = distanceSqr;
+            }
+        }
+
+        if (bestSide == null) {
+            bestSide = directionToward(eyes, center);
+            bestHit = center;
+            bestDistanceSqr = centerDistanceSqr;
+        }
+        return new BlockBreakParameters(pos.immutable(), bestSide, bestHit, bestDistanceSqr);
     }
 
     private static boolean isIgnoredPlant(BlockState state) {
@@ -784,20 +1096,147 @@ public final class QuarryFeature extends Feature {
         return false;
     }
 
-    private void sendPathCommand(BlockPos target) {
-        if (baritoneCooldownTicks > 0) {
-            baritoneCooldownTicks--;
+    private void skipCurrentTargetAfterPathingFailure(Minecraft client, Bounds bounds, BlockState state) {
+        if (currentTarget == null) {
             return;
         }
 
-        BaritoneBridge.runCommand("goto " + target.getX() + " " + target.getY() + " " + target.getZ());
-        baritoneCooldownTicks = BARITONE_COMMAND_COOLDOWN_TICKS;
+        BlockPos skipped = currentTarget;
+        skippedTargets.add(skipped);
+        advancePastCurrent(bounds);
+        currentTarget = null;
+        stopQuarryBreaking();
+        cancelActivePath();
+        FeatureManager.INSTANCE.saveFeature(this);
+        sendPlayerMessage(client, "Quarry skipped " + blockName(state) + " at " + formatPos(skipped) + ": pathing did not make progress.");
+    }
+
+    private boolean sendPathCommand(Minecraft client, BlockPos target, double targetReachDistance) {
+        if (client.level == null || client.player == null) {
+            return false;
+        }
+
+        BlockPos destination = navigationDestinationForTarget(client.level, client.player, target, targetReachDistance);
+        if (destination == null) {
+            destination = target;
+        }
+
+        applyBaritoneChatLogging();
+        if (destination.equals(navigationTarget)) {
+            return !navigationIsStuck(client.player);
+        }
+
+        navigationTarget = destination;
+        resetNavigationProgress();
+        BaritoneBridge.runCommand("goto " + destination.getX() + " " + destination.getY() + " " + destination.getZ());
+        return true;
+    }
+
+    private BlockPos navigationDestinationForTarget(
+            ClientLevel level,
+            Player player,
+            BlockPos target,
+            double targetReachDistance) {
+        BlockPos best = null;
+        double bestDistanceSqr = Double.MAX_VALUE;
+        Vec3 playerPosition = player.position();
+
+        for (int dy = -2; dy <= 1; dy++) {
+            for (int dz = -NAVIGATION_CANDIDATE_RADIUS; dz <= NAVIGATION_CANDIDATE_RADIUS; dz++) {
+                for (int dx = -NAVIGATION_CANDIDATE_RADIUS; dx <= NAVIGATION_CANDIDATE_RADIUS; dx++) {
+                    BlockPos candidate = target.offset(dx, dy, dz);
+                    if (!canStandAt(level, candidate) || !isWithinReach(level, candidate, target, targetReachDistance)) {
+                        continue;
+                    }
+
+                    double distanceSqr = playerPosition.distanceToSqr(bottomCenter(candidate));
+                    if (distanceSqr < bestDistanceSqr) {
+                        bestDistanceSqr = distanceSqr;
+                        best = candidate;
+                    }
+                }
+            }
+        }
+
+        return best;
+    }
+
+    private static boolean canStandAt(ClientLevel level, BlockPos feet) {
+        return isPassableForStanding(level, feet)
+                && isPassableForStanding(level, feet.above())
+                && !level.getBlockState(feet.below()).getCollisionShape(level, feet.below(), CollisionContext.empty()).isEmpty();
+    }
+
+    private static boolean isPassableForStanding(ClientLevel level, BlockPos pos) {
+        BlockState state = level.getBlockState(pos);
+        return !state.liquid() && state.getCollisionShape(level, pos, CollisionContext.empty()).isEmpty();
+    }
+
+    private static boolean isWithinReach(ClientLevel level, BlockPos feet, BlockPos target, double targetReachDistance) {
+        Vec3 standingEyes = new Vec3(feet.getX() + 0.5D, feet.getY() + 1.62D, feet.getZ() + 0.5D);
+        BlockBreakParameters parameters = blockBreakParameters(level, standingEyes, target);
+        return parameters != null && parameters.distanceSqr() <= targetReachDistance * targetReachDistance;
+    }
+
+    private static Vec3 bottomCenter(BlockPos pos) {
+        return new Vec3(pos.getX() + 0.5D, pos.getY(), pos.getZ() + 0.5D);
+    }
+
+    private boolean navigationIsStuck(Player player) {
+        if (navigationTarget == null) {
+            resetNavigationProgress();
+            return false;
+        }
+
+        double distanceSqr = player.position().distanceToSqr(bottomCenter(navigationTarget));
+        if (bestNavigationDistanceSqr == Double.MAX_VALUE || distanceSqr + NAVIGATION_PROGRESS_EPSILON_SQR < bestNavigationDistanceSqr) {
+            bestNavigationDistanceSqr = distanceSqr;
+            navigationNoProgressTicks = 0;
+            return false;
+        }
+
+        navigationNoProgressTicks++;
+        return navigationNoProgressTicks >= NAVIGATION_STUCK_TICKS;
+    }
+
+    private void resetNavigationProgress() {
+        bestNavigationDistanceSqr = Double.MAX_VALUE;
+        navigationNoProgressTicks = 0;
+    }
+
+    private void cancelActivePath() {
+        if (navigationTarget == null) {
+            return;
+        }
+
+        BaritoneBridge.runCommand("cancel");
+        navigationTarget = null;
+        resetNavigationProgress();
     }
 
     private void pauseMovement() {
-        breakingTarget = null;
-        BaritoneBridge.runCommand("pause");
+        stopQuarryBreaking();
+        navigationTarget = null;
+        resetNavigationProgress();
+        applyBaritoneChatLogging();
         BaritoneBridge.runCommand("cancel");
+        BaritoneBridge.endQuarryControl();
+    }
+
+    private void stopQuarryBreaking() {
+        if (breakingTarget == null) {
+            return;
+        }
+
+        Minecraft client = Minecraft.getInstance();
+        if (client.gameMode != null) {
+            client.gameMode.stopDestroyBlock();
+        }
+        breakingTarget = null;
+    }
+
+    private void applyBaritoneChatLogging() {
+        BaritoneBridge.setChatLoggingEnabled(baritoneChatLoggingEnabled);
     }
 
     private void queueMissingBaritoneWarning() {
@@ -854,14 +1293,11 @@ public final class QuarryFeature extends Feature {
         }
         Bounds bounds = bounds();
         if (bounds == null) {
-            sendPlayerMessage(client, "Set both Quarry corners first with /quarry pos1 and /quarry pos2.");
+            sendPlayerMessage(client, missingSelectionMessage());
             return;
         }
-        cursorX = bounds.minX();
-        cursorY = bounds.maxY();
-        cursorZ = bounds.minZ();
-        currentTarget = null;
-        breakingTarget = null;
+        initializeTask(client.level, client.player, bounds);
+        applyBaritoneChatLogging();
         taskState = TaskState.RUNNING;
         warnIfLarge(client, bounds);
         FeatureManager.INSTANCE.saveFeature(this);
@@ -873,7 +1309,11 @@ public final class QuarryFeature extends Feature {
             sendPlayerMessage(client, "Baritone is required for Quarry. Install Baritone and reload the game.");
             return;
         }
-        breakingTarget = null;
+        stopQuarryBreaking();
+        navigationTarget = null;
+        skippedTargets.clear();
+        resetNavigationProgress();
+        applyBaritoneChatLogging();
         taskState = TaskState.RUNNING;
         FeatureManager.INSTANCE.saveFeature(this);
         sendPlayerMessage(client, "Quarry resumed.");
@@ -891,6 +1331,10 @@ public final class QuarryFeature extends Feature {
     private void stopFromKey(Minecraft client) {
         taskState = TaskState.STOPPED;
         currentTarget = null;
+        stopQuarryBreaking();
+        navigationTarget = null;
+        skippedTargets.clear();
+        resetNavigationProgress();
         pauseMovement();
         FeatureManager.INSTANCE.saveFeature(this);
         sendPlayerMessage(client, "Quarry stopped.");
@@ -902,19 +1346,25 @@ public final class QuarryFeature extends Feature {
             return;
         }
 
-        source.sendFeedback(Component.literal("Quarry box: " + bounds.width() + " x " + bounds.height() + " x " + bounds.depth() + " (" + bounds.volume() + " blocks)."));
-        warnIfLarge(source, bounds);
+        long blockCount = selectionBlockCount(bounds);
+        source.sendFeedback(Component.literal(selectionDescription(bounds, blockCount) + "."));
+        warnIfLarge(source, blockCount);
     }
 
     private void warnIfLarge(FabricClientCommandSource source, Bounds bounds) {
-        if (bounds.volume() > largeTaskThreshold) {
-            source.sendFeedback(Component.literal("Warning: Quarry selection contains " + bounds.volume() + " blocks."));
+        warnIfLarge(source, selectionBlockCount(bounds));
+    }
+
+    private void warnIfLarge(FabricClientCommandSource source, long blockCount) {
+        if (blockCount > largeTaskThreshold) {
+            source.sendFeedback(Component.literal("Warning: Quarry selection contains " + blockCount + " blocks."));
         }
     }
 
     private void warnIfLarge(Minecraft client, Bounds bounds) {
-        if (bounds.volume() > largeTaskThreshold) {
-            sendPlayerMessage(client, "Warning: Quarry selection contains " + bounds.volume() + " blocks.");
+        long blockCount = selectionBlockCount(bounds);
+        if (blockCount > largeTaskThreshold) {
+            sendPlayerMessage(client, "Warning: Quarry selection contains " + blockCount + " blocks.");
         }
     }
 
@@ -933,6 +1383,21 @@ public final class QuarryFeature extends Feature {
     }
 
     private Bounds bounds() {
+        if (selectionShape == SelectionShape.SPHERE) {
+            if (sphereCenter == null) {
+                return null;
+            }
+
+            int radius = clampInt(sphereRadius, MIN_SPHERE_RADIUS, MAX_SPHERE_RADIUS);
+            return new Bounds(
+                    sphereCenter.getX() - radius,
+                    sphereCenter.getY() - radius,
+                    sphereCenter.getZ() - radius,
+                    sphereCenter.getX() + radius,
+                    sphereCenter.getY() + radius,
+                    sphereCenter.getZ() + radius);
+        }
+
         if (pos1 == null || pos2 == null) {
             return null;
         }
@@ -944,6 +1409,34 @@ public final class QuarryFeature extends Feature {
                 Math.max(pos1.getX(), pos2.getX()),
                 Math.max(pos1.getY(), pos2.getY()),
                 Math.max(pos1.getZ(), pos2.getZ()));
+    }
+
+    private long selectionBlockCount(Bounds bounds) {
+        if (selectionShape != SelectionShape.SPHERE || sphereCenter == null) {
+            return bounds.volume();
+        }
+
+        return sphereBlockCount(sphereRadius);
+    }
+
+    private String selectionDescription(Bounds bounds, long blockCount) {
+        if (selectionShape == SelectionShape.SPHERE && sphereCenter != null) {
+            return "Quarry sphere: center " + formatPos(sphereCenter) + ", radius " + sphereRadius + " (" + blockCount + " blocks)";
+        }
+
+        return "Quarry box: " + bounds.width() + " x " + bounds.height() + " x " + bounds.depth() + " (" + blockCount + " blocks)";
+    }
+
+    private void resetTaskForNewSelection() {
+        taskState = TaskState.STOPPED;
+        cursorX = 0;
+        cursorY = 0;
+        cursorZ = 0;
+        currentTarget = null;
+        stopQuarryBreaking();
+        navigationTarget = null;
+        skippedTargets.clear();
+        resetNavigationProgress();
     }
 
     private static Identifier resolveBlockId(String raw) {
@@ -982,9 +1475,7 @@ public final class QuarryFeature extends Feature {
         return "tool";
     }
 
-    private static Direction directionToward(Player player, BlockPos target) {
-        Vec3 eyes = player.getEyePosition();
-        Vec3 center = Vec3.atCenterOf(target);
+    private static Direction directionToward(Vec3 eyes, Vec3 center) {
         double dx = center.x - eyes.x;
         double dy = center.y - eyes.y;
         double dz = center.z - eyes.z;
@@ -1004,6 +1495,24 @@ public final class QuarryFeature extends Feature {
         if (client != null && client.player != null) {
             client.player.sendSystemMessage(Component.literal(message));
         }
+    }
+
+    private static boolean isBaritoneMessage(Component message) {
+        if (message == null) {
+            return false;
+        }
+
+        String text = ChatFormatting.stripFormatting(message.getString());
+        if (text == null) {
+            return false;
+        }
+
+        String normalized = text.trim().toLowerCase(Locale.ROOT);
+        return normalized.startsWith("[baritone]")
+                || normalized.startsWith("[b]")
+                || normalized.startsWith("baritone ")
+                || normalized.startsWith("baritone:")
+                || normalized.contains("[baritone]");
     }
 
     private static String formatPos(BlockPos pos) {
@@ -1050,6 +1559,70 @@ public final class QuarryFeature extends Feature {
                 .setLineWidth(OVERLAY_LINE_WIDTH);
     }
 
+    private static void renderBoxOverlay(com.mojang.blaze3d.vertex.VertexConsumer vertices, com.mojang.blaze3d.vertex.PoseStack.Pose pose, Vec3 camera, Bounds bounds, int color, int alpha) {
+        double minX = bounds.minX() - camera.x;
+        double minY = bounds.minY() - camera.y;
+        double minZ = bounds.minZ() - camera.z;
+        double maxX = bounds.maxX() + 1.0D - camera.x;
+        double maxY = bounds.maxY() + 1.0D - camera.y;
+        double maxZ = bounds.maxZ() + 1.0D - camera.z;
+
+        line(vertices, pose, minX, minY, minZ, maxX, minY, minZ, color, alpha);
+        line(vertices, pose, maxX, minY, minZ, maxX, minY, maxZ, color, alpha);
+        line(vertices, pose, maxX, minY, maxZ, minX, minY, maxZ, color, alpha);
+        line(vertices, pose, minX, minY, maxZ, minX, minY, minZ, color, alpha);
+        line(vertices, pose, minX, maxY, minZ, maxX, maxY, minZ, color, alpha);
+        line(vertices, pose, maxX, maxY, minZ, maxX, maxY, maxZ, color, alpha);
+        line(vertices, pose, maxX, maxY, maxZ, minX, maxY, maxZ, color, alpha);
+        line(vertices, pose, minX, maxY, maxZ, minX, maxY, minZ, color, alpha);
+        line(vertices, pose, minX, minY, minZ, minX, maxY, minZ, color, alpha);
+        line(vertices, pose, maxX, minY, minZ, maxX, maxY, minZ, color, alpha);
+        line(vertices, pose, maxX, minY, maxZ, maxX, maxY, maxZ, color, alpha);
+        line(vertices, pose, minX, minY, maxZ, minX, maxY, maxZ, color, alpha);
+    }
+
+    private static void renderSphereOverlay(com.mojang.blaze3d.vertex.VertexConsumer vertices, com.mojang.blaze3d.vertex.PoseStack.Pose pose, Vec3 camera, BlockPos center, int radius, int color, int alpha) {
+        double centerX = center.getX() + 0.5D - camera.x;
+        double centerY = center.getY() + 0.5D - camera.y;
+        double centerZ = center.getZ() + 0.5D - camera.z;
+        double visualRadius = radius + 0.5D;
+
+        for (int segment = 0; segment < SPHERE_OVERLAY_SEGMENTS; segment++) {
+            double angle1 = Math.PI * 2.0D * segment / SPHERE_OVERLAY_SEGMENTS;
+            double angle2 = Math.PI * 2.0D * (segment + 1) / SPHERE_OVERLAY_SEGMENTS;
+            double cos1 = Math.cos(angle1) * visualRadius;
+            double sin1 = Math.sin(angle1) * visualRadius;
+            double cos2 = Math.cos(angle2) * visualRadius;
+            double sin2 = Math.sin(angle2) * visualRadius;
+
+            line(vertices, pose, centerX + cos1, centerY + sin1, centerZ, centerX + cos2, centerY + sin2, centerZ, color, alpha);
+            line(vertices, pose, centerX + cos1, centerY, centerZ + sin1, centerX + cos2, centerY, centerZ + sin2, color, alpha);
+            line(vertices, pose, centerX, centerY + cos1, centerZ + sin1, centerX, centerY + cos2, centerZ + sin2, color, alpha);
+        }
+    }
+
+    private static long sphereBlockCount(int radius) {
+        long radiusSqr = (long) radius * radius;
+        long count = 0L;
+        for (int y = -radius; y <= radius; y++) {
+            long ySqr = (long) y * y;
+            for (int z = -radius; z <= radius; z++) {
+                long yzSqr = ySqr + (long) z * z;
+                for (int x = -radius; x <= radius; x++) {
+                    long distanceSqr = yzSqr + (long) x * x;
+                    if (distanceSqr <= radiusSqr) {
+                        count++;
+                    }
+                }
+            }
+        }
+        return count;
+    }
+
+    private static String missingSelectionMessage() {
+        return "Set a Quarry selection first with /quarry pos1 and /quarry pos2, or create a sphere with /quarry <radius>.";
+    }
+
     private static java.util.concurrent.CompletableFuture<com.mojang.brigadier.suggestion.Suggestions> suggestBlocks(CommandContext<FabricClientCommandSource> context, SuggestionsBuilder builder) {
         List<Identifier> ids = new ArrayList<>();
         for (Block block : BuiltInRegistries.BLOCK) {
@@ -1067,7 +1640,7 @@ public final class QuarryFeature extends Feature {
     private Option<Color> overlayColorOption() {
         return Option.<Color>createBuilder()
                 .name(Component.literal("Overlay color"))
-                .description(description("Wireframe color for the selected Quarry box."))
+                .description(description("Wireframe color for the selected Quarry shape."))
                 .binding(DEFAULT_OVERLAY_COLOR, this::overlayColor, this::setOverlayColor)
                 .controller(option -> ColorControllerBuilder.create(option).allowAlpha(false))
                 .instant(true)
@@ -1103,15 +1676,17 @@ public final class QuarryFeature extends Feature {
                 .build();
     }
 
-    private Option<Boolean> playerProximityAlertOption() {
-        return Option.<Boolean>createBuilder()
-                .name(Component.literal("Player proximity alert"))
-                .description(description("Pauses Quarry and plays an alert when another player is visible to the client."))
-                .binding(true, () -> playerProximityAlertEnabled, value -> {
-                    playerProximityAlertEnabled = value;
+    private Option<PlayerProximityAction> playerProximityActionOption() {
+        return Option.<PlayerProximityAction>createBuilder()
+                .name(Component.literal("Player proximity behavior"))
+                .description(description("Choose what Quarry does when another player is visible to the client."))
+                .binding(PlayerProximityAction.PAUSE, () -> playerProximityAction, value -> {
+                    playerProximityAction = value == null ? PlayerProximityAction.PAUSE : value;
                     FeatureManager.INSTANCE.saveFeature(this);
                 })
-                .controller(BooleanControllerBuilder::create)
+                .controller(option -> EnumControllerBuilder.create(option)
+                        .enumClass(PlayerProximityAction.class)
+                        .valueFormatter(value -> Component.literal(value.displayName())))
                 .instant(true)
                 .build();
     }
@@ -1159,11 +1734,43 @@ public final class QuarryFeature extends Feature {
                 .build();
     }
 
-    private Option<String> whitelistOption() {
+    private Option<BlockListMode> blockListModeOption() {
+        return Option.<BlockListMode>createBuilder()
+                .name(Component.literal("Block list mode"))
+                .description(description("Absolute filter for Quarry and Baritone: blacklist never mines listed blocks; whitelist never mines unlisted blocks."))
+                .binding(BlockListMode.BLACKLIST, () -> blockListMode, value -> {
+                    blockListMode = value == null ? BlockListMode.BLACKLIST : value;
+                    currentTarget = null;
+                    stopQuarryBreaking();
+                    cancelActivePath();
+                    FeatureManager.INSTANCE.saveFeature(this);
+                })
+                .controller(option -> EnumControllerBuilder.create(option)
+                        .enumClass(BlockListMode.class)
+                        .valueFormatter(value -> Component.literal(value.displayName())))
+                .instant(true)
+                .build();
+    }
+
+    private Option<Boolean> baritoneChatLoggingOption() {
+        return Option.<Boolean>createBuilder()
+                .name(Component.literal("Baritone chat logs"))
+                .description(description("Shows or hides Baritone chat messages while Quarry controls Baritone."))
+                .binding(false, () -> baritoneChatLoggingEnabled, value -> {
+                    baritoneChatLoggingEnabled = value;
+                    applyBaritoneChatLogging();
+                    FeatureManager.INSTANCE.saveFeature(this);
+                })
+                .controller(BooleanControllerBuilder::create)
+                .instant(true)
+                .build();
+    }
+
+    private Option<String> blockListOption() {
         return Option.<String>createBuilder()
-                .name(Component.literal("Whitelist block ids"))
-                .description(description("Comma-separated block ids Quarry will never break. Example: minecraft:diamond_ore, ancient_debris"))
-                .binding("", this::whitelistConfigValue, this::setWhitelistConfigValue)
+                .name(Component.literal("Block list ids"))
+                .description(description("Comma-separated block ids used by the selected block list mode. Example: minecraft:diamond_ore, ancient_debris"))
+                .binding("", this::blockListConfigValue, this::setBlockListConfigValue)
                 .controller(StringControllerBuilder::create)
                 .instant(true)
                 .build();
@@ -1182,24 +1789,27 @@ public final class QuarryFeature extends Feature {
                 .build();
     }
 
-    private String whitelistConfigValue() {
-        return whitelist.stream()
+    private String blockListConfigValue() {
+        return blockList.stream()
                 .map(Identifier::toString)
                 .sorted()
                 .reduce((left, right) -> left + ", " + right)
                 .orElse("");
     }
 
-    private void setWhitelistConfigValue(String value) {
-        whitelist.clear();
+    private void setBlockListConfigValue(String value) {
+        blockList.clear();
         if (value != null && !value.isBlank()) {
             for (String raw : value.split(",")) {
                 Identifier id = resolveBlockId(raw.trim());
                 if (id != null) {
-                    whitelist.add(id);
+                    blockList.add(id);
                 }
             }
         }
+        currentTarget = null;
+        stopQuarryBreaking();
+        cancelActivePath();
         FeatureManager.INSTANCE.saveFeature(this);
     }
 
@@ -1276,6 +1886,30 @@ public final class QuarryFeature extends Feature {
         }
     }
 
+    private enum SelectionShape {
+        BOX("box"),
+        SPHERE("sphere");
+
+        private final String configValue;
+
+        SelectionShape(String configValue) {
+            this.configValue = configValue;
+        }
+
+        private String configValue() {
+            return configValue;
+        }
+
+        private static SelectionShape fromConfig(String value) {
+            for (SelectionShape shape : values()) {
+                if (shape.configValue.equalsIgnoreCase(value)) {
+                    return shape;
+                }
+            }
+            return BOX;
+        }
+    }
+
     public enum InventoryFullMode {
         PAUSE("Pause when full"),
         IGNORE("Ignore and continue");
@@ -1304,6 +1938,65 @@ public final class QuarryFeature extends Feature {
         }
     }
 
+    public enum PlayerProximityAction {
+        PAUSE("Pause Quarry"),
+        IGNORE("Ignore players");
+
+        private final String displayName;
+
+        PlayerProximityAction(String displayName) {
+            this.displayName = displayName;
+        }
+
+        private String displayName() {
+            return displayName;
+        }
+
+        private String configValue() {
+            return name().toLowerCase(Locale.ROOT);
+        }
+
+        private static PlayerProximityAction fromConfig(String value) {
+            for (PlayerProximityAction action : values()) {
+                if (action.configValue().equalsIgnoreCase(value)) {
+                    return action;
+                }
+            }
+            return PAUSE;
+        }
+    }
+
+    public enum BlockListMode {
+        BLACKLIST("Blacklist"),
+        WHITELIST("Whitelist");
+
+        private final String displayName;
+
+        BlockListMode(String displayName) {
+            this.displayName = displayName;
+        }
+
+        private String displayName() {
+            return displayName;
+        }
+
+        private String configValue() {
+            return name().toLowerCase(Locale.ROOT);
+        }
+
+        private static BlockListMode fromConfig(String value) {
+            for (BlockListMode mode : values()) {
+                if (mode.configValue().equalsIgnoreCase(value)) {
+                    return mode;
+                }
+            }
+            return BLACKLIST;
+        }
+    }
+
+    private record BlockBreakParameters(BlockPos pos, Direction side, Vec3 hit, double distanceSqr) {
+    }
+
     private record Bounds(int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
         private int width() {
             return maxX - minX + 1;
@@ -1320,16 +2013,139 @@ public final class QuarryFeature extends Feature {
         private long volume() {
             return (long) width() * height() * depth();
         }
+
+        private boolean contains(BlockPos pos) {
+            return pos.getX() >= minX && pos.getX() <= maxX
+                    && pos.getY() >= minY && pos.getY() <= maxY
+                    && pos.getZ() >= minZ && pos.getZ() <= maxZ;
+        }
     }
 
     private static final class BaritoneBridge {
+        private static final String ALLOW_BREAK = "allowBreak";
+        private static final String ALLOW_BREAK_ANYWAY = "allowBreakAnyway";
+        private static final String BLOCKS_TO_DISALLOW_BREAKING = "blocksToDisallowBreaking";
+        private static final String BLOCK_REACH_DISTANCE = "blockReachDistance";
         private static final boolean AVAILABLE = findApiClass().isPresent() || findInternalProviderClass().isPresent();
+        private static Boolean appliedChatLoggingEnabled;
+        private static final Map<String, Object> quarrySettingSnapshot = new HashMap<>();
+        private static Object quarrySettings;
+        private static boolean quarryControlActive;
 
         private BaritoneBridge() {
         }
 
         private static boolean isAvailable() {
             return AVAILABLE;
+        }
+
+        private static boolean applyQuarryControl(BlockListMode mode, Set<Identifier> blockIds, double reachDistance) {
+            Optional<Class<?>> apiClass = findApiClass();
+            if (apiClass.isEmpty()) {
+                return AVAILABLE;
+            }
+
+            try {
+                Object settings = apiClass.get().getMethod("getSettings").invoke(null);
+                if (!quarryControlActive) {
+                    quarrySettings = settings;
+                    quarrySettingSnapshot.clear();
+                    snapshotSetting(settings, ALLOW_BREAK);
+                    snapshotSetting(settings, ALLOW_BREAK_ANYWAY);
+                    snapshotSetting(settings, BLOCKS_TO_DISALLOW_BREAKING);
+                    snapshotSetting(settings, BLOCK_REACH_DISTANCE);
+                    quarryControlActive = true;
+                }
+
+                List<Block> listedBlocks = new ArrayList<>();
+                for (Identifier id : blockIds) {
+                    BuiltInRegistries.BLOCK.getOptional(id).ifPresent(listedBlocks::add);
+                }
+
+                List<Object> originalAllowedAnyway = snapshotList(ALLOW_BREAK_ANYWAY);
+                List<Object> originalDisallowed = snapshotList(BLOCKS_TO_DISALLOW_BREAKING);
+                if (mode == BlockListMode.WHITELIST) {
+                    setSettingValue(settings, ALLOW_BREAK, false);
+                    setSettingValue(settings, ALLOW_BREAK_ANYWAY, new ArrayList<>(listedBlocks));
+                    setSettingValue(settings, BLOCKS_TO_DISALLOW_BREAKING, originalDisallowed);
+                } else {
+                    originalAllowedAnyway.removeAll(listedBlocks);
+                    for (Block block : listedBlocks) {
+                        if (!originalDisallowed.contains(block)) {
+                            originalDisallowed.add(block);
+                        }
+                    }
+                    setSettingValue(settings, ALLOW_BREAK, quarrySettingSnapshot.get(ALLOW_BREAK));
+                    setSettingValue(settings, ALLOW_BREAK_ANYWAY, originalAllowedAnyway);
+                    setSettingValue(settings, BLOCKS_TO_DISALLOW_BREAKING, originalDisallowed);
+                }
+                setSettingValue(settings, BLOCK_REACH_DISTANCE, (float) reachDistance);
+                return true;
+            } catch (ReflectiveOperationException | LinkageError | RuntimeException exception) {
+                NullTweaksClient.LOGGER.warn("Failed to apply Quarry's absolute Baritone block rules", exception);
+                endQuarryControl();
+                return AVAILABLE;
+            }
+        }
+
+        private static void endQuarryControl() {
+            if (!quarryControlActive || quarrySettings == null) {
+                return;
+            }
+
+            try {
+                for (Map.Entry<String, Object> entry : quarrySettingSnapshot.entrySet()) {
+                    setSettingValue(quarrySettings, entry.getKey(), copySettingValue(entry.getValue()));
+                }
+            } catch (ReflectiveOperationException | LinkageError | RuntimeException exception) {
+                NullTweaksClient.LOGGER.warn("Failed to restore Baritone settings after Quarry stopped", exception);
+            } finally {
+                quarrySettingSnapshot.clear();
+                quarrySettings = null;
+                quarryControlActive = false;
+            }
+        }
+
+        private static void snapshotSetting(Object settings, String name) throws ReflectiveOperationException {
+            quarrySettingSnapshot.put(name, copySettingValue(getSettingValue(settings, name)));
+        }
+
+        private static List<Object> snapshotList(String name) {
+            Object value = quarrySettingSnapshot.get(name);
+            return value instanceof List<?> list ? new ArrayList<>(list) : new ArrayList<>();
+        }
+
+        private static Object copySettingValue(Object value) {
+            return value instanceof List<?> list ? new ArrayList<>(list) : value;
+        }
+
+        private static Object getSettingValue(Object settings, String name) throws ReflectiveOperationException {
+            Object setting = settings.getClass().getField(name).get(settings);
+            Field valueField = setting.getClass().getField("value");
+            return valueField.get(setting);
+        }
+
+        private static void setSettingValue(Object settings, String name, Object value) throws ReflectiveOperationException {
+            Object setting = settings.getClass().getField(name).get(settings);
+            Field valueField = setting.getClass().getField("value");
+            valueField.set(setting, value);
+        }
+
+        private static void setChatLoggingEnabled(boolean enabled) {
+            if (!AVAILABLE || Boolean.valueOf(enabled).equals(appliedChatLoggingEnabled)) {
+                return;
+            }
+
+            Optional<Class<?>> apiClass = findApiClass();
+            if (apiClass.isPresent() && setSettingsChatLogging(apiClass.get(), enabled)) {
+                appliedChatLoggingEnabled = enabled;
+                return;
+            }
+
+            runChatCommand("set echoCommands " + enabled);
+            runChatCommand("set chatDebug " + enabled);
+            runChatCommand("set logAsToast false");
+            appliedChatLoggingEnabled = enabled;
         }
 
         private static void runCommand(String command) {
@@ -1351,6 +2167,29 @@ public final class QuarryFeature extends Feature {
                 execute.invoke(manager, command);
             } catch (ReflectiveOperationException | LinkageError exception) {
                 NullTweaksClient.LOGGER.warn("Failed to execute Baritone command: {}", command, exception);
+            }
+        }
+
+        private static boolean setSettingsChatLogging(Class<?> apiClass, boolean enabled) {
+            try {
+                Object settings = apiClass.getMethod("getSettings").invoke(null);
+                boolean chatDebugSet = setBooleanSetting(settings, "chatDebug", enabled);
+                boolean echoCommandsSet = setBooleanSetting(settings, "echoCommands", enabled);
+                boolean logAsToastSet = setBooleanSetting(settings, "logAsToast", false);
+                return chatDebugSet || echoCommandsSet || logAsToastSet;
+            } catch (ReflectiveOperationException | LinkageError exception) {
+                NullTweaksClient.LOGGER.warn("Failed to update Baritone chat log settings", exception);
+                return false;
+            }
+        }
+
+        private static boolean setBooleanSetting(Object settings, String name, boolean enabled) {
+            try {
+                setSettingValue(settings, name, enabled);
+                return true;
+            } catch (ReflectiveOperationException | LinkageError exception) {
+                NullTweaksClient.LOGGER.debug("Baritone setting {} is not available", name, exception);
+                return false;
             }
         }
 

@@ -12,6 +12,7 @@ import dev.nullkeeperdev.nulltweaks.feature.nofog.NoFogFeature;
 import dev.nullkeeperdev.nulltweaks.feature.outerlayerplus.OuterLayerPlusFeature;
 import dev.nullkeeperdev.nulltweaks.feature.quarry.QuarryFeature;
 import dev.nullkeeperdev.nulltweaks.feature.raidmobhighlight.RaidMobHighlightFeature;
+import dev.nullkeeperdev.nulltweaks.feature.speednuker.SpeedNukerFeature;
 import dev.nullkeeperdev.nulltweaks.input.NullTweaksKeyMappings;
 import net.fabricmc.api.ClientModInitializer;
 import org.slf4j.Logger;
@@ -28,8 +29,10 @@ public final class NullTweaksClient implements ClientModInitializer {
         NullTweaksKeyMappings.register();
         LibrarianTradeScannerFeature.registerCommands();
         QuarryFeature.registerCommands();
+        SpeedNukerFeature.registerCommands();
         QuarryFeature.registerMissingBaritoneWarningHooks();
         NullTweaksConfig config = NullTweaksConfig.load();
+        config.migrateQuarrySpeedNuker();
         FeatureManager featureManager = FeatureManager.INSTANCE;
         featureManager.register(new OuterLayerPlusFeature());
         featureManager.register(new NametagTweaksFeature());
@@ -38,6 +41,7 @@ public final class NullTweaksClient implements ClientModInitializer {
         featureManager.register(new NoFogFeature());
         featureManager.register(new AutoclickerFeature());
         featureManager.register(new QuarryFeature());
+        featureManager.register(new SpeedNukerFeature());
         featureManager.register(new RaidMobHighlightFeature());
         featureManager.register(new LibrarianTradeScannerFeature());
         featureManager.register(new MaxEnchantIndicatorFeature());

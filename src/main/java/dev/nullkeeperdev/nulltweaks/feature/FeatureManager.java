@@ -58,6 +58,15 @@ public final class FeatureManager {
         hooksRegistered = true;
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             for (Feature feature : features.values()) {
+                if (!feature.isDisabledForSession() && feature.listensForGlobalClientTicks()) {
+                    try {
+                        feature.onGlobalClientTick(client);
+                    } catch (RuntimeException exception) {
+                        disableForSession(feature, "global client tick", exception);
+                    }
+                }
+            }
+            for (Feature feature : features.values()) {
                 if (feature.isActiveForHooks() && feature.listensForClientTicks()) {
                     try {
                         feature.onClientTick(client);

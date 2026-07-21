@@ -47,6 +47,10 @@ public abstract class Feature {
         return enabled && !disabledForSession;
     }
 
+    final boolean isDisabledForSession() {
+        return disabledForSession;
+    }
+
     final void disableForSession() {
         if (disabledForSession) {
             return;
@@ -64,6 +68,13 @@ public abstract class Feature {
 
     public boolean listensForClientTicks() {
         return false;
+    }
+
+    public boolean listensForGlobalClientTicks() {
+        return false;
+    }
+
+    public void onGlobalClientTick(Minecraft client) {
     }
 
     public void onClientTick(Minecraft client) {

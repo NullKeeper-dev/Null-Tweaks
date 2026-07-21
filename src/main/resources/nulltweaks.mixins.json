@@ -5,6 +5,7 @@
   "client": [
     "AvatarRendererNametagMixin",
     "CameraFreecamMixin",
+    "ChatComponentQuarryMixin",
     "ClientInputFreecamMixin",
     "ClientPacketListenerLibrarianScannerMixin",
     "EntityRendererLibrarianScannerMixin",
@@ -23,6 +24,7 @@
     "MinecraftLibrarianSearchMixin",
     "MinecraftRaidMobHighlightMixin",
     "MouseHandlerFreecamMixin",
+    "MultiPlayerGameModeQuarryMixin",
     "MultiPlayerGameModeLibrarianScannerMixin",
     "NameTagStorageNametagMixin",
     "PlayerTabOverlayMixin",

@@ -2,6 +2,31 @@
 
 All notable changes to Null Tweaks will be documented in this file.
 
+## [1.4.0] - 2026-07-21
+
+### Added
+
+- Added an absolute Quarry block-list mode toggle: blacklist mode prevents Quarry and Baritone from mining listed blocks, while whitelist mode prevents them from mining unlisted blocks.
+- Added `/quarry mode blacklist`, `/quarry mode whitelist`, and neutral `/quarry blocklist` commands for managing Quarry block-list behavior.
+- Added `/quarry <radius>` to create a spherical Quarry selection centered on the player before starting it with `/quarry start`.
+- Added a Quarry Baritone chat-log toggle, including `/quarry chatlogs on` and `/quarry chatlogs off`, to hide Baritone messages globally when disabled.
+- Added Speed Nuker as an independent opt-in module with `/speednuker` commands, a default three-block reach, configurable 2–64 block attempt limit, absolute standalone blacklist or whitelist filtering, and a clear server-ban/disconnect warning without anti-detection behavior.
+- Added optional Quarry integration for Speed Nuker. When enabled alongside Quarry, it shares Quarry's block list and replaces Quarry's normal mining action inside the active selection; otherwise it uses its separate standalone lists.
+- Added Full, Protect Below, and Protect Y Level Speed Nuker mining modes, an unbound on/off hotkey, and a configurable `1–6` block reach in `0.5`-block increments.
+- Added a Quarry player-proximity behavior option so another player entering render distance pauses Quarry by default or can be ignored.
+
+### Fixed
+
+- Fixed `/quarry clear` so it remains usable for clearing saved Quarry state even when Quarry is disabled in settings.
+- Fixed Quarry startup to begin at the nearest non-skipped block inside the selected box instead of always starting from the first traversal corner.
+- Fixed Quarry mining stability on slower blocks such as deepslate by cancelling active Baritone pathing once the target is within reach.
+- Fixed Quarry automation state around client screens by cancelling its active mining and Baritone path as soon as chat, inventory, Mod Menu, Escape, or another screen opens, then resuming after the screen closes.
+- Fixed Quarry navigation so Baritone paths to reachable standing positions near target blocks and skips targets that stop making pathing progress instead of repeatedly jumping in place.
+
+### Changed
+
+- Reduced Quarry's mining reach from 4.5 blocks to 3 blocks and made reach checks use the player's eyes and the nearest target face.
+
 ## [1.3.0] - 2026-07-16
 
 ### Added

@@ -29,6 +29,7 @@ public final class NullTweaksScreenBuilder {
     private static final String[] MOVEMENT_AND_AUTOMATION = {
             "freecam",
             "autoclicker",
+            "speed_nuker",
             "quarry"
     };
     private static String lastCategoryName;
@@ -97,7 +98,8 @@ public final class NullTweaksScreenBuilder {
             case "librarian_trade_scanner" -> "Automatically discovers and displays librarians' enchanted book trades above their heads without opening their trading menu.";
             case "freecam" -> "Detach your camera to fly around and scout freely without moving your actual character.";
             case "autoclicker" -> "Automatically clicks at a fixed interval, useful for AFK grinding.";
-            case "quarry" -> "Defines a boxed mining region and automates top-down block breaking through optional Baritone integration.";
+            case "speed_nuker" -> "Packet-mines multiple nearby eligible blocks per tick within a three-block reach, with standalone or Quarry block-list filtering.";
+            case "quarry" -> "Defines a boxed or spherical mining region and automates filtered top-down block breaking and pathing.";
             default -> feature.displayName();
         };
     }

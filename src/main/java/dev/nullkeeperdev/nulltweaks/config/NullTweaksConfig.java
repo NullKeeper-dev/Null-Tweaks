@@ -56,6 +56,29 @@ public final class NullTweaksConfig {
         return featureConfig;
     }
 
+    public void migrateQuarrySpeedNuker() {
+        JsonElement quarryElement = root.get("quarry");
+        if (quarryElement == null || !quarryElement.isJsonObject()) {
+            return;
+        }
+
+        JsonObject quarry = quarryElement.getAsJsonObject();
+        if (!quarry.has("speedNukerEnabled") && !quarry.has("speedNukerMaxBlocksPerTick")) {
+            return;
+        }
+
+        JsonObject speedNuker = getFeatureConfig("speed_nuker");
+        if (!speedNuker.has("enabled")) {
+            speedNuker.addProperty("enabled", false);
+        }
+        if (!speedNuker.has("maxBlocksPerTick") && quarry.has("speedNukerMaxBlocksPerTick")) {
+            speedNuker.addProperty("maxBlocksPerTick", getInt(quarry, "speedNukerMaxBlocksPerTick", 8));
+        }
+        if (!speedNuker.has("useWithQuarry")) {
+            speedNuker.addProperty("useWithQuarry", true);
+        }
+    }
+
     public void save() {
         try {
             Files.createDirectories(CONFIG_PATH.getParent());
