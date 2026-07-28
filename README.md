@@ -1,110 +1,98 @@
-<p align="center">
-  <img src="assets/cover.png" alt="Null Tweaks cover" width="520">
-</p>
-
-<h1 align="center">Null Tweaks</h1>
-
-<p align="center">
-  A clean client-side Fabric mod for small visual and quality-of-life tweaks.
-</p>
-
-<p align="center">
-  <a href="LICENSE">GPL-3.0-only</a> | Minecraft 26.1-26.2 | Fabric Client
-</p>
-
-## Overview
-
-Null Tweaks keeps a focused set of client-side options in one tidy settings
-screen. It is built for players who want small visual cleanup, better HUD
-control, and a few practical utility toggles without changing server-side
-gameplay.
+<div align="center">
+  <img src="https://raw.githubusercontent.com/NullKeeper-dev/Null-Tweaks/main/src/main/resources/assets/nulltweaks/icon.png" alt="Null Tweaks icon" width="128">
+  <h1>Null Tweaks</h1>
+  <p>A clean client-side Fabric mod for focused visual, utility, and automation tweaks.</p>
+  <p>
+    <img src="https://img.shields.io/badge/Loader-Fabric-dbd0b4" alt="Fabric loader">
+    <img src="https://img.shields.io/badge/Minecraft-26.1%E2%80%9326.2-62b47a" alt="Minecraft 26.1–26.2">
+    <img src="https://img.shields.io/badge/License-GPL--3.0--only-3da639" alt="GPL-3.0-only license">
+  </p>
+</div>
 
 ## Features
 
-- OuterLayer+ for a cleaner player overlay and tab-list presentation.
-- Nametag Tweaks for easier player-name visibility.
-- Freecam with configurable movement and first-person hand visibility.
-- No Fishing Bobber to hide only your local hook sprite while keeping the line.
-- No Fog with separate toggles for lava, water, powder snow, effects, and world fog.
-- Autoclicker for fixed-interval left or right clicking with a visible active indicator.
-- Speed Nuker as an independent opt-in module that attempts multiple eligible blocks per tick with a configurable `1–6` block reach, Full, Protect Below, and Protect Y Level mining modes, an unbound toggle hotkey, absolute standalone blacklist or whitelist filtering, and optional Quarry integration using Quarry's block list and active selection. Its packet rate and reach can trigger anti-cheat, disconnect you, or get you banned; it does not attempt to evade detection.
-- Quarry automation for selected boxed or spherical regions, with `/quarry clear` selection reset, absolute blacklist or whitelist filtering across Quarry and Baritone, optional Speed Nuker integration, global Baritone message suppression, configurable player-proximity behavior that defaults to pausing, a three-block mining reach, a wireframe selection overlay, nearest-target startup, layer-continuous serpentine traversal, automatic vegetation skipping in blacklist mode, automatic pausing while any client screen is open, and Baritone-powered pathing.
+| Feature | Type | Highlight |
+| --- | --- | --- |
+| OuterLayer+ | Visual | Cleans up the player overlay and tab-list presentation. |
+| Nametag Tweaks | Visual | Improves player-name visibility with configurable styling. |
+| Freecam | Movement | Detaches the camera with configurable speed and hand visibility. |
+| No Fishing Bobber | Visual | Hides your local hook sprite while keeping its fishing line visible. |
+| No Fog | Visual | Controls lava, water, powder snow, effect, and world fog separately. |
+| Autoclicker | Utility | Repeats left or right clicks at a fixed interval with an active indicator. |
+| Quarry | Automation | Mines boxed or spherical selections with filtering, safety controls, and Baritone pathing. |
+| Speed Nuker | Automation | Packet-mines nearby eligible blocks with reach, rate, protection, and list controls. |
+| Raid Mob Highlight | World info | Outlines raid mobs and banner-carrying Pillager leaders through walls. |
+| Librarian Trade Scanner | World info | Scans nearby librarians and displays their enchanted-book trades. |
+| Max Enchant Indicator | World info | Marks maximum-level enchantments with a solid or animated chroma color. |
 
-## Speed Nuker Commands
+## See it in action
 
-- `/speednuker on` and `/speednuker off` enable or disable the independent module.
-- `/speednuker quarry on` and `/speednuker quarry off` control Quarry integration.
-- `/speednuker max <2-64>` sets the maximum number of blocks attempted per tick. Each attempt sends both a START and STOP mining packet, so high values can disconnect you or get you banned.
-- `/speednuker reach <1-6>` sets packet-mining reach and snaps it to `0.5`-block increments. Servers may reject or flag reach beyond their allowed interaction distance.
-- `/speednuker miningmode protect_below` skips only the block directly beneath your feet, `/speednuker miningmode protect_y_level` skips every block below your current block Y, and `/speednuker miningmode full` applies no positional protection.
-- `/speednuker mode blacklist` prevents standalone Speed Nuker from mining listed blocks, while `/speednuker mode whitelist` prevents it from mining anything except listed blocks.
-- `/speednuker blocklist add <block>`, `/speednuker blocklist remove <block>`, and `/speednuker blocklist list` manage its standalone list. When Quarry integration and Quarry itself are enabled, Quarry's list is used instead; an active Quarry task also restricts Speed Nuker to the Quarry selection.
-- The Speed Nuker settings group includes an unbound toggle keybind that can turn the module on or off directly.
+### Configure every tweak
 
-## Quarry Commands
-
-- `/quarry pos1` and `/quarry pos2` set the selected box corners at your current block position.
-- `/quarry <radius>` creates a spherical selection centered on your current block position, with radius values from `1` to `64`; use `/quarry start` afterward to begin mining it.
-- `/quarry start`, `/quarry pause`, `/quarry resume`, and `/quarry stop` control the active task.
-- `/quarry clear` stops Quarry and clears the saved selection and task progress, even if the Quarry feature is currently disabled.
-- `/quarry mode blacklist` prevents Quarry and Baritone from mining listed blocks, while `/quarry mode whitelist` prevents them from mining anything except listed blocks. Targets that cannot be reached under these absolute rules are skipped.
-- `/quarry chatlogs on` and `/quarry chatlogs off` show or hide Baritone messages.
-- `/quarry blocklist add <block>`, `/quarry blocklist remove <block>`, and `/quarry blocklist list` manage the shared block list.
-- `/quarry whitelist add <block>`, `/quarry whitelist remove <block>`, and `/quarry whitelist list` remain as compatibility aliases for the shared block list.
-
-## Gallery
+Open one organized settings screen and adjust each feature without editing config files.
 
 <p align="center">
-  <img src="assets/gallery/Settings.png" alt="Null Tweaks settings screen" width="760">
+  <img src="https://raw.githubusercontent.com/NullKeeper-dev/Null-Tweaks/main/assets/gallery/Settings.png" alt="Null Tweaks settings screen" width="760">
 </p>
+
+### Clear obstructive fog
+
+Remove only the fog types you do not want, including water fog.
 
 <p align="center">
-  <sub>Settings are grouped by feature so each tweak stays easy to find.</sub>
+  <img src="https://raw.githubusercontent.com/NullKeeper-dev/Null-Tweaks/main/assets/gallery/No%20Water%20Fog.png" alt="No Water Fog in action" width="760">
 </p>
+
+### Read nametags at a glance
+
+Tune player nametags for clearer identification in busy scenes.
 
 <p align="center">
-  <img src="assets/gallery/No%20Water%20Fog.png" alt="No water fog showcase" width="760">
+  <img src="https://raw.githubusercontent.com/NullKeeper-dev/Null-Tweaks/main/assets/gallery/Nametags%20showcase.png" alt="Nametag Tweaks in action" width="760">
 </p>
+
+## Install
+
+1. Install [Fabric Loader](https://fabricmc.net/use/installer/) for your Minecraft version.
+2. Download [Fabric API](https://modrinth.com/mod/fabric-api), [YetAnotherConfigLib](https://modrinth.com/mod/yacl), and [Mod Menu](https://modrinth.com/mod/modmenu) from Modrinth.
+3. Download the matching Null Tweaks jar from [Modrinth](https://modrinth.com/mod/null-tweaks).
+4. Place Null Tweaks and all required dependency jars in your Minecraft `mods` folder.
+5. Launch the Fabric profile. To use Quarry, also install a compatible Fabric [Null-Baritone](https://github.com/NullKeeper-dev/Null-Baritone) build; other features do not require Baritone.
+
+> [!NOTE]
+> Null Tweaks supports Minecraft `26.1`, `26.1.1`, `26.1.2`, and `26.2`. Use the jar matching your exact game version. The mod is client-side only and does not need to be installed on the server.
+
+## Use
+
+1. Launch Minecraft with Fabric and open **Mods** from the main menu.
+2. Select **Null Tweaks**, then choose **Configure**.
+3. Open the **Visuals**, **World Info**, or **Movement & Automation** tab and enable the features you want.
+4. Adjust each feature's options, then close the screen; changes are saved automatically.
+5. Assign any desired Null Tweaks controls under **Options → Controls → Key Binds**. Quarry, Speed Nuker, and enchant search also expose in-game commands for their advanced workflows.
+
+> **Tip:** Null Tweaks' config and automation keybinds are unbound by default. Speed Nuker sends mining packets without attempting to evade detection, so server anti-cheat may reject the reach or rate, disconnect you, or ban you.
+
+<details>
+<summary><strong>Build from source</strong></summary>
+
+Requires JDK 25.
+
+Build all configured Minecraft version targets with the Gradle wrapper:
+
+```bash
+./gradlew chiseledBuild
+```
+
+On Windows PowerShell, use:
+
+```powershell
+.\gradlew.bat chiseledBuild
+```
+
+The distributable jars are collected in `build/libs/<mod_version>/`.
+
+</details>
 
 <p align="center">
-  <sub>No Fog can remove specific fog types without changing gameplay.</sub>
+  <a href="https://spdx.org/licenses/GPL-3.0-only.html">GPL-3.0-only</a> · 2026 · <a href="https://github.com/NullKeeper-dev">NullKeeper-dev</a>
 </p>
-
-<p align="center">
-  <img src="assets/gallery/Nametags%20showcase.png" alt="Nametag tweaks showcase" width="760">
-</p>
-
-<p align="center">
-  <sub>Nametag Tweaks keeps player names easier to read at a glance.</sub>
-</p>
-
-## Requirements
-
-- Required: [Fabric Loader](https://fabricmc.net/use/installer/)
-- Required: [Fabric API](https://modrinth.com/mod/fabric-api)
-- Required: [YetAnotherConfigLib](https://modrinth.com/mod/yacl)
-- Required: [Mod Menu](https://modrinth.com/mod/modmenu)
-- Optional for Quarry: Quarry currently uses Baritone for pathing and movement.
-  For local testing, install a compatible Fabric Baritone jar, or a fork such
-  as [Null-Baritone](https://github.com/NullKeeper-dev/Null-Baritone), beside
-  Null Tweaks. If no compatible Baritone is loaded, Null Tweaks shows a join
-  warning with a Null-Baritone download link and a persistent "Don't show
-  again" option. A single-jar release would require bundling or replacing the
-  Baritone integration; until then, Quarry will not start unless a compatible
-  Baritone API or command-capable Baritone fork is loaded. With API-capable
-  builds, Quarry also feeds its reach and absolute block rules into path planning.
-
-See [DEPENDENCY_MODS.md](DEPENDENCY_MODS.md) for the exact dependency versions
-used by each supported Minecraft release.
-
-## Download
-
-Use the Null Tweaks jar that matches your Minecraft version:
-
-- `26.1`
-- `26.1.1`
-- `26.1.2`
-- `26.2`
-
-Install it in your `mods` folder with the required dependency mods, then open
-the Mod Menu entry to configure each feature.

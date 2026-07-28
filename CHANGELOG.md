@@ -2,6 +2,12 @@
 
 All notable changes to Null Tweaks will be documented in this file.
 
+## [1.4.1] - 2026-07-28
+
+### Changed
+
+- Reworked the README with a centered project header, feature overview, hosted screenshots, installation links (including the explicit Null-Baritone GitHub exception), usage guidance, source-build instructions, and project footer.
+
 ## [1.4.0] - 2026-07-21
 
 ### Added
