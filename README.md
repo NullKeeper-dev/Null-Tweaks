@@ -1,6 +1,5 @@
 <div align="center">
-  <img src="https://raw.githubusercontent.com/NullKeeper-dev/Null-Tweaks/main/src/main/resources/assets/nulltweaks/icon.png" alt="Null Tweaks icon" width="128">
-  <h1>Null Tweaks</h1>
+  <img src="https://cdn.modrinth.com/data/fkHaLBiP/images/87d604203e47871119d82992aef1c2738c808263.png" alt="Null Tweaks icon">
   <p>A clean client-side Fabric mod for focused visual, utility, and automation tweaks.</p>
   <p>
     <img src="https://img.shields.io/badge/Loader-Fabric-dbd0b4" alt="Fabric loader">
